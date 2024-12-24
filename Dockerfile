@@ -1,10 +1,10 @@
-FROM golang:1.22 AS builder
+FROM golang:1.23 AS builder
 
-COPY . /pun
+COPY . /bunny
 
-WORKDIR /pun
+WORKDIR /bunny
 RUN make
 
 FROM scratch
-COPY --from=builder /pun/dist/pun /bin/pun
-ENTRYPOINT ["/bin/pun"]
+COPY --from=builder /bunny/dist/bunny /bin/bunny
+ENTRYPOINT ["/bin/bunny"]

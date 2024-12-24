@@ -48,7 +48,7 @@ type CLIOpts struct {
 	Version        bool
 	// The Containerfile to be used for building the unikernel container
 	ContainerFile  string
-	// Choose the execution mode. If set, then pun will not act as a
+	// Choose the execution mode. If set, then bunny will not act as a
 	// buidlkit frontend. Instead it will just print the LLB.
 	PrintLLB       bool
 }
@@ -63,7 +63,7 @@ var version string
 
 func usage() {
 
-	fmt.Println("Usage of pun")
+	fmt.Println("Usage of bunny")
 	fmt.Printf("%s [<args>]\n\n", os.Args[0])
 	fmt.Println("Supported command line arguments")
 	fmt.Println("\t-v, --version bool \t\tPrint the version and exit")
@@ -252,7 +252,7 @@ func annotateRes(annots map[string]string, res *client.Result) (*client.Result, 
 	return res, nil
 }
 
-func punBuilder(ctx context.Context, c client.Client) (*client.Result, error) {
+func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) {
 	// Get the Build options from buildkit
 	packOpts := c.BuildOpts().Opts
 
@@ -304,13 +304,13 @@ func main() {
 	cliOpts = parseCLIOpts()
 
 	if cliOpts.Version {
-		fmt.Printf("pun version %s\n", version)
+		fmt.Printf("bunny version %s\n", version)
 		return
 	}
 	if !cliOpts.PrintLLB {
 		// Run as buildkit frontend
 		ctx := appcontext.Context()
-		if err := grpcclient.RunFromEnvironment(ctx, punBuilder); err != nil {
+		if err := grpcclient.RunFromEnvironment(ctx, bunnyBuilder); err != nil {
 			fmt.Printf("Could not start grpcclient: %v\n", err)
 			os.Exit(1)
 		}

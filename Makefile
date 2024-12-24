@@ -26,7 +26,7 @@ VENDOR_DIR     := ${CURDIR}/vendor
 PREFIX         ?= /usr/local/bin
 
 # Binary variables
-PUN_BIN        := $(BUILD_DIR)/pun
+BUNNY_BIN        := $(BUILD_DIR)/bunny
 
 # Golang variables
 #? GO go binary to use (default: go)
@@ -56,7 +56,7 @@ LINT_CNTR_CMD  ?= golangci-lint run -v --timeout=5m
 
 ## default Build shim and urunc statically for host arch.(default).
 .PHONY: default
-default: $(PUN_BIN)
+default: $(BUNNY_BIN)
 
 # Just an alias for $(VENDOR_DIR) for easie invocation
 ## prepare Run go mod vendor and veridy.
@@ -74,20 +74,20 @@ $(VENDOR_DIR):
 # vendor do notproduce any file and execute all the time,
 # we avoid the rebuilding of urunc if it has previously built and the
 # source files have not changed.
-$(PUN_BIN): main.go | prepare
+$(BUNNY_BIN): main.go | prepare
 	$(GO_FLAGS) $(GO) build \
 		-ldflags "$(LDFLAGS_COMMON) $(LDFLAGS_STATIC) $(LDFLAGS_OPT)" \
-		-o $(PUN_BIN)
+		-o $(BUNNY_BIN)
 
 ## install Install urunc and shim in PREFIX
 .PHONY: install
-install: $(PUN_BIN)
-	install -D -m0755 $^ $(PREFIX)/pun
+install: $(BUNNY_BIN)
+	install -D -m0755 $^ $(PREFIX)/bunny
 
 ## uninstall Remove urunc and shim from PREFIX
 .PHONY: uninstall
 uninstall:
-	rm -f $(PREFIX)/pun
+	rm -f $(PREFIX)/bunny
 
 ## distclean Remove build and vendor directories
 .PHONY: distclean

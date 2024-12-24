@@ -50,9 +50,9 @@ jobs:
           echo "go: ${{ steps.filter.outputs.go}}"
           echo "version: ${{ steps.filter.outputs.version}}"
 
-  build-pun:
+  build-bunny:
     needs: [get-changed-files]
-    name: Pun
+    name: Bunny
     if: ${{ needs.get-changed-files.outputs.go == 'true' || needs.get-changed-files.outputs.dockerfile == 'true' || needs.get-changed-files.outputs.version == 'true' }}
     uses: ./.github/workflows/build.yml
     secrets: inherit
