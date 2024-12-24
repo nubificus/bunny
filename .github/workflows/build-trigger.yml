@@ -1,0 +1,62 @@
+name: 🍜 Build/publish go runners
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+  workflow_dispatch: # build on demand
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  get-changed-files:
+    runs-on: ubuntu-latest
+    outputs:
+      version_files: ${{ steps.filter.outputs.version_files}}
+      version: ${{ steps.filter.outputs.version }}
+      dockerfile_files: ${{ steps.filter.outputs.dockerfile_files}}
+      dockerfile: ${{ steps.filter.outputs.dockerfile }}
+      go_files: ${{ steps.filter.outputs.go_files}}
+      go: ${{ steps.filter.outputs.go }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Get Changed Files
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          list-files: 'json'
+          base: 'main'
+          filters: |
+            version:
+              - 'VERSION'
+            dockerfile:
+              - 'Dockerfile'
+            go:
+              - '*.go'
+              - 'Makefile'
+              - '*.mod'
+
+      - name: Show Changed Files
+        run: |
+          echo "Files in dockerfile: ${{ steps.filter.outputs.dockerfile_files }}"
+          echo "Files for version: ${{ steps.filter.outputs.version_files }}"
+          echo "Files in go: ${{ steps.filter.outputs.go_files }}"
+          echo "dockerfile: ${{ steps.filter.outputs.dockerfile}}"
+          echo "go: ${{ steps.filter.outputs.go}}"
+          echo "version: ${{ steps.filter.outputs.version}}"
+
+  build-pun:
+    needs: [get-changed-files]
+    name: Pun
+    if: ${{ needs.get-changed-files.outputs.go == 'true' || needs.get-changed-files.outputs.dockerfile == 'true' || needs.get-changed-files.outputs.version == 'true' }}
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    with:
+      runner: '["gcc", "dind", "2204"]'
+      runner-archs: '["amd64"]'
+      version-tag: ${{ needs.get-changed-files.outputs.version == 'true' }}
