@@ -163,13 +163,15 @@ func constructLLB(instr PackInstructions) (*llb.Definition, error) {
 	// Set the base image where we will pack the unikernel
 	if instr.Base == "scratch" {
 		base = llb.Scratch()
-	} else {
+	} else if strings.HasPrefix(instr.Base, unikraftHub) {
 		// Define the platform to qemu/amd64 so we cna pull unikraft images
 		platform := ocispecs.Platform{
 			OS:           "qemu",
 			Architecture: "amd64",
 		}
 		base = llb.Image(instr.Base, llb.Platform(platform),)
+	} else {
+		base = llb.Image(instr.Base)
 	}
 
 	// Perform any copies inside the image
@@ -307,6 +309,7 @@ func main() {
 		fmt.Printf("bunny version %s\n", version)
 		return
 	}
+
 	if !cliOpts.PrintLLB {
 		// Run as buildkit frontend
 		ctx := appcontext.Context()
