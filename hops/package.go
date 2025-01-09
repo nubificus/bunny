@@ -35,9 +35,9 @@ const (
 )
 
 type PackInstructions struct {
-	Base   string                     // The Base image to use
-	Copies []instructions.CopyCommand // Copy commands
-	Annots map[string]string          // Annotations
+	Base   string            // The Base image to use
+	Copies map[string]string // Mappings of files top copy, source as key and destination as value
+	Annots map[string]string // Annotations
 }
 
 // ParseDockerFile reads a Dockerfile-like file and returns a Hops
@@ -45,6 +45,7 @@ type PackInstructions struct {
 func ParseDockerFile(fileBytes []byte) (*PackInstructions, error) {
 	var instr *PackInstructions
 	instr = new(PackInstructions)
+	instr.Copies = make(map[string]string)
 	instr.Annots = make(map[string]string)
 
 	r := bytes.NewReader(fileBytes)
@@ -70,7 +71,8 @@ func ParseDockerFile(fileBytes []byte) (*PackInstructions, error) {
 			instr.Base = c.BaseName
 		case *instructions.CopyCommand:
 			// Handle COPY
-			instr.Copies = append(instr.Copies, *c)
+			//instr.Copies = append(instr.Copies, *c)
+			instr.Copies[c.SourcePaths[0]] = c.DestPath
 		case *instructions.LabelCommand:
 			// Handle LABLE annotations
 			for _, kvp := range c.Labels {
@@ -130,8 +132,8 @@ func PackLLB(instr PackInstructions, buildContext string) (*llb.Definition, erro
 	}
 
 	// Perform any copies inside the image
-	for _, aCopy := range instr.Copies {
-		base = copyIn(base, buildContext, aCopy.SourcePaths[0], aCopy.DestPath)
+	for src, dst := range instr.Copies {
+		base = copyIn(base, buildContext, src, dst)
 	}
 
 	// Create the urunc.json file in the rootfs
