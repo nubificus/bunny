@@ -52,16 +52,14 @@ func ParseDockerFile(fileBytes []byte) (*PackInstructions, error) {
 	// Parse the Dockerfile
 	parseRes, err := parser.Parse(r)
 	if err != nil {
-		fmt.Printf("Failed to parse file: %v\n", err)
-		return nil, err
+		return nil, fmt.Errorf("Failed to parse data as Dockerfile: %v", err)
 	}
 
 	// Traverse Dockerfile commands
 	for _, child := range parseRes.AST.Children {
 		cmd, err := instructions.ParseInstruction(child)
 		if err != nil {
-			fmt.Printf("Failed to parse instruction %s: %v\n", child.Value, err)
-			return nil, err
+			return nil, fmt.Errorf("Line %d: %v", child.StartLine, err)
 		}
 		switch c := cmd.(type) {
 		case *instructions.Stage:
@@ -81,9 +79,9 @@ func ParseDockerFile(fileBytes []byte) (*PackInstructions, error) {
 			}
 		case instructions.Command:
 			// Catch all other commands
-			fmt.Printf("UNsupported command%s\n", c.Name())
+			return nil, fmt.Errorf("Unsupported command: %s", c.Name())
 		default:
-			fmt.Printf("%f is not a command type\n", c)
+			return nil, fmt.Errorf("Not a command type: %s", c)
 		}
 
 	}

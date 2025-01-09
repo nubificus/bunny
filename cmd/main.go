@@ -89,7 +89,7 @@ func readFileFromLLB(ctx context.Context, c client.Client, filename string) ([]b
 	}
 	fileRef, err := fileRes.SingleRef()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get ref from solve resutl for fetching %s: %w", clientOptFilename, err)
+		return nil, fmt.Errorf("Failed to get reference of result for fetching %s: %w", clientOptFilename, err)
 	}
 
 	// Read the content of the file
@@ -106,7 +106,7 @@ func readFileFromLLB(ctx context.Context, c client.Client, filename string) ([]b
 func annotateRes(annots map[string]string, res *client.Result) (*client.Result, error) {
 	ref, err := res.SingleRef()
 	if err != nil {
-		return nil, fmt.Errorf("Failed te get reference of LLB solve result : %v",err)
+		return nil, fmt.Errorf("Failed te get reference build result: %v",err)
 	}
 
 	config := ocispecs.Image{
@@ -126,7 +126,7 @@ func annotateRes(annots map[string]string, res *client.Result) (*client.Result, 
 
 	imageConfig, err := json.Marshal(config)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to marshal urunc json: %v", err)
+		return nil, fmt.Errorf("Failed to marshal image config: %v", err)
 	}
 	res.AddMeta(exptypes.ExporterImageConfigKey, imageConfig)
 	for annot, val := range annots {
@@ -144,7 +144,7 @@ func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) 
 	// Get the file that contains the instructions
 	bunnyFile := buildOpts[clientOptFilename]
 	if bunnyFile == "" {
-		return nil, fmt.Errorf("%s: was not provided", clientOptFilename)
+		return nil, fmt.Errorf("Could not find %s", clientOptFilename)
 	}
 
 	// Fetch and read contents of user-specified file in build context
@@ -156,13 +156,13 @@ func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) 
 	// Parse packaging/building instructions
 	packInst, err := hops.ParseDockerFile(fileBytes)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing unikernel image building instructions", err)
+		return nil, fmt.Errorf("Error parsing building instructions: %v", err)
 	}
 
 	// Create the LLB definiton of packing the final image
 	dt, err := hops.PackLLB(*packInst, buildContextName)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create LLB definition : %v\n", err)
+		return nil, fmt.Errorf("Could not create LLB definition: %v", err)
 	}
 
 	// Pass LLB to buildkit
@@ -197,7 +197,7 @@ func main() {
 		// Run as buildkit frontend
 		ctx := appcontext.Context()
 		if err := grpcclient.RunFromEnvironment(ctx, bunnyBuilder); err != nil {
-			fmt.Printf("Could not start grpcclient: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error: Could not connect to buildkit: %v\n", err)
 			os.Exit(1)
 		}
 
@@ -206,28 +206,28 @@ func main() {
 
 	// Normal local execution to print LLB
 	if cliOpts.ContainerFile == "" {
-		fmt.Println("Please specify the Containerfile")
-		fmt.Println("Use -h or --help for more info")
+		fmt.Fprintf(os.Stderr, "Error: No instructions file as input\n")
+		fmt.Fprintf(os.Stderr, "Use -h or --help for more info\n")
 		os.Exit(1)
 	}
 
 	CntrFileContent, err := ioutil.ReadFile(cliOpts.ContainerFile)
 	if err != nil {
-		fmt.Printf("Failed to read %s: %v\n", cliOpts.ContainerFile, err)
+		fmt.Fprintf(os.Stderr, "Error: Could not read %s: %v\n", cliOpts.ContainerFile, err)
 		os.Exit(1)
 	}
 
 	// Parse file with packaging/building instructions
 	packInst, err = hops.ParseDockerFile(CntrFileContent)
 	if err != nil {
-		fmt.Println("Error parsing unikernel image building instructions", err)
+		fmt.Fprintf(os.Stderr, "Error: Could not parse building instructions: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Create the LLB definition of packing the final image
 	dt, err := hops.PackLLB(*packInst, buildContextName)
 	if err != nil {
-		fmt.Printf("Failed to create LLB definition : %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: Could not create LLB definition: %v\n", err)
 		os.Exit(1)
 	}
 
