@@ -49,6 +49,13 @@ LINT_CNTR_OPTS ?= $(CNTR_OPTS) -v $(CURDIR):/app -w /app
 LINT_CNTR_IMG  ?= golangci/golangci-lint:v1.53.3
 LINT_CNTR_CMD  ?= golangci-lint run -v --timeout=5m
 
+# Source files variables
+#
+# Add all urunc specific go packages as dependency for building
+# or the shimAny change ina go file will result to rebuilding urunc
+BUNNY_SRC      := $(wildcard $(CURDIR)/cmd/*.go)
+BUNNY_SRC      += $(wildcard $(CURDIR)/hops/*.go)
+
 # Main Building rules
 #
 # By default we opt to build static binaries targeting the host archiotecture.
@@ -74,10 +81,10 @@ $(VENDOR_DIR):
 # vendor do notproduce any file and execute all the time,
 # we avoid the rebuilding of urunc if it has previously built and the
 # source files have not changed.
-$(BUNNY_BIN): main.go | prepare
+$(BUNNY_BIN): $(BUNNY_SRC) | prepare
 	$(GO_FLAGS) $(GO) build \
 		-ldflags "$(LDFLAGS_COMMON) $(LDFLAGS_STATIC) $(LDFLAGS_OPT)" \
-		-o $(BUNNY_BIN)
+		-o $(BUNNY_BIN) $(CURDIR)/cmd
 
 ## install Install urunc and shim in PREFIX
 .PHONY: install
