@@ -206,6 +206,32 @@ func ParseDockerFile(fileBytes []byte) (*PackInstructions, error) {
 	return instr, nil
 }
 
+// ParseFile identifies the format of the given file and either calls
+// ParseDockerFile or ParseBunnyFile
+func ParseFile(fileBytes []byte) (*PackInstructions, error) {
+	lines := bytes.Split(fileBytes, []byte("\n"))
+
+	// First line is always the #syntax
+	if len(lines) <= 1 {
+		return nil, fmt.Errorf("Invalid format of file")
+	}
+
+	// Simply check if the first non-empty line starts with FROM
+	// If it starts we assume a Dockerfile
+	// otherwise a bunnyfile
+	for _, line := range lines[1:] {
+		if len(bytes.TrimSpace(line)) > 0 {
+			if strings.HasPrefix(string(line), "FROM") {
+				return ParseDockerFile(fileBytes)
+			} else {
+				break
+			}
+		}
+	}
+
+	return ParseBunnyFile(fileBytes)
+}
+
 func copyIn(base llb.State, from string, src string, dst string) llb.State {
 	var copyState llb.State
 	var localSrc llb.State
