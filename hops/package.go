@@ -22,22 +22,137 @@ import (
 	"bytes"
 	"strings"
 
+	"gopkg.in/yaml.v3"
 	"github.com/moby/buildkit/client/llb"
 	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/moby/buildkit/frontend/dockerfile/instructions"
 	"github.com/moby/buildkit/frontend/dockerfile/parser"
+	"github.com/hashicorp/go-version"
 )
 
 const (
+	DefaultKernelPath  string = "/.boot/kernel"
+	DefaultInitrdPath  string = "/.boot/initrd"
 	unikraftKernelPath string = "/unikraft/bin/kernel"
 	unikraftHub        string = "unikraft.org"
 	uruncJSONPath      string = "/urunc.json"
+	bunnyFileVersion   string = "0.1"
 )
+
+type HopsPlatform struct {
+	Framework string `yaml:"framework"`
+	Version   string `yaml:"version"`
+	Monitor   string `yaml:"monitor"`
+	Arch      string `yaml:"arch"`
+}
+
+type HopsRootfs struct {
+	From string `yaml:"from"`
+	Path string `yaml:"path"`
+}
+
+type HopsKernel struct {
+	From   string `yaml:"from"`
+	Path   string `yaml:"path"`
+}
+
+type Hops struct {
+	Version  string       `yaml:"version"`
+	Platform HopsPlatform `yaml:"platforms"`
+	Rootfs   HopsRootfs   `yaml:"rootfs"`
+	Kernel   HopsKernel   `yaml:"kernel"`
+	Cmd      string       `yaml:"cmdline"`
+}
 
 type PackInstructions struct {
 	Base   string            // The Base image to use
 	Copies map[string]string // Mappings of files top copy, source as key and destination as value
 	Annots map[string]string // Annotations
+}
+
+// HopsToPack converts Hops into PackInstructions
+func HopsToPack(hops Hops) (*PackInstructions, error) {
+	var instr *PackInstructions
+	instr = new(PackInstructions)
+	instr.Copies = make(map[string]string)
+	instr.Annots = make(map[string]string)
+
+	if hops.Kernel.From == "local" {
+		instr.Base = "scratch"
+		instr.Copies[hops.Kernel.Path] = DefaultKernelPath
+		instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+	} else {
+		instr.Base = hops.Kernel.From
+		instr.Annots["com.urunc.unikernel.binary"] = hops.Kernel.Path
+	}
+
+	if hops.Rootfs.From == "local" && hops.Platform.Framework == "unikraft" {
+		instr.Copies[hops.Rootfs.Path] = DefaultInitrdPath
+		instr.Annots["com.urunc.unikernel.initrd"] = DefaultInitrdPath
+	}
+	instr.Annots["com.urunc.unikernel.unikernelType"] = hops.Platform.Framework
+	instr.Annots["com.urunc.unikernel.cmdline"] = hops.Cmd
+	instr.Annots["com.urunc.unikernel.hypervisor"] = hops.Platform.Monitor
+	if hops.Platform.Version != "" {
+		instr.Annots["com.urunc.unikernel.unikernelVersion"] = hops.Platform.Version
+	}
+
+	return instr, nil
+}
+
+// CheckBunnyfileVersion checks if the version of the user's input file
+// is compatible with the supported version.
+func CheckBunnyfileVersion(userVersion string) error {
+	if userVersion == "" {
+		return fmt.Errorf("The version field is necessary")
+	}
+	hopsVersion, err := version.NewVersion(bunnyFileVersion)
+	if err != nil {
+		return fmt.Errorf("Internal error in current bunnyfile version %s: %v", bunnyFileVersion, err)
+	}
+	userFileVer, err := version.NewVersion(userVersion)
+	if err != nil {
+		return fmt.Errorf("Could not parse version in user bunnyfile %s: %v", userVersion, err)
+	}
+	if hopsVersion.LessThan(userFileVer) {
+		return fmt.Errorf("Unsupported version %s. Please use %s or earlier", userVersion, bunnyFileVersion)
+	}
+
+	return nil
+}
+
+// ParseBunnyFile reads a yaml file which contains instructions for
+// bunny.
+func ParseBunnyFile(fileBytes []byte) (*PackInstructions, error) {
+	var bunnyHops Hops
+
+	err := yaml.Unmarshal(fileBytes, &bunnyHops)
+	if err != nil {
+		return nil, err
+	}
+
+	err =  CheckBunnyfileVersion(bunnyHops.Version)
+	if err != nil {
+		return nil, err
+	}
+
+	if bunnyHops.Platform.Framework == "" {
+		return nil, fmt.Errorf("The framework field of platforms is necessary")
+	}
+
+	if bunnyHops.Platform.Monitor == "" {
+		return nil, fmt.Errorf("The monitor field of platforms is necessary")
+	}
+
+	if bunnyHops.Kernel.From == "" {
+		return nil, fmt.Errorf("The from field of kernel is necessary")
+	}
+
+	if bunnyHops.Kernel.Path == "" {
+		return nil, fmt.Errorf("The path field of kernel is necessary")
+	}
+
+	return HopsToPack(bunnyHops)
 }
 
 // ParseDockerFile reads a Dockerfile-like file and returns a Hops

@@ -3,8 +3,10 @@ module bunny
 go 1.23.4
 
 require (
+	github.com/hashicorp/go-version v1.7.0
 	github.com/moby/buildkit v0.18.2
 	github.com/opencontainers/image-spec v1.1.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -29,6 +31,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/in-toto/in-toto-golang v0.5.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/sys/signal v0.7.1 // indirect
