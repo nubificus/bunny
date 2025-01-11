@@ -154,13 +154,13 @@ func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) 
 	}
 
 	// Parse packaging/building instructions
-	packInst, err := hops.ParseFile(fileBytes)
+	packInst, err := hops.ParseFile(fileBytes, buildContextName)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing building instructions: %v", err)
 	}
 
 	// Create the LLB definiton of packing the final image
-	dt, err := hops.PackLLB(*packInst, buildContextName)
+	dt, err := hops.PackLLB(*packInst)
 	if err != nil {
 		return nil, fmt.Errorf("Could not create LLB definition: %v", err)
 	}
@@ -218,14 +218,14 @@ func main() {
 	}
 
 	// Parse file with packaging/building instructions
-	packInst, err = hops.ParseFile(CntrFileContent)
+	packInst, err = hops.ParseFile(CntrFileContent, buildContextName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: Could not parse building instructions: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Create the LLB definition of packing the final image
-	dt, err := hops.PackLLB(*packInst, buildContextName)
+	dt, err := hops.PackLLB(*packInst)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: Could not create LLB definition: %v\n", err)
 		os.Exit(1)

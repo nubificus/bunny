@@ -64,30 +64,46 @@ type Hops struct {
 	Cmd      string       `yaml:"cmdline"`
 }
 
+type PackCopies struct {    // A struct to represent a copy operation in the final image
+	SrcState llb.State  // The state where the file resides
+	SrcPath  string     // The source path inside the SrcState where the file resides
+	DstPath  string     // The destination path to copy the file inside the final image
+}
+
 type PackInstructions struct {
 	Base   string            // The Base image to use
-	Copies map[string]string // Mappings of files top copy, source as key and destination as value
+	Copies []PackCopies      // A list of packCopies, rpresenting the files to copy inside the final image
 	Annots map[string]string // Annotations
 }
 
 // HopsToPack converts Hops into PackInstructions
-func HopsToPack(hops Hops) (*PackInstructions, error) {
+func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 	var instr *PackInstructions
 	instr = new(PackInstructions)
-	instr.Copies = make(map[string]string)
 	instr.Annots = make(map[string]string)
 
 	if hops.Kernel.From == "local" {
+		var aCopy PackCopies
+
 		instr.Base = "scratch"
-		instr.Copies[hops.Kernel.Path] = DefaultKernelPath
 		instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+
+		aCopy.SrcState = llb.Local(buildContext)
+		aCopy.SrcPath = hops.Kernel.Path
+		aCopy.DstPath = DefaultKernelPath
+		instr.Copies = append(instr.Copies, aCopy)
 	} else {
 		instr.Base = hops.Kernel.From
 		instr.Annots["com.urunc.unikernel.binary"] = hops.Kernel.Path
 	}
 
 	if hops.Rootfs.From == "local" && hops.Platform.Framework == "unikraft" {
-		instr.Copies[hops.Rootfs.Path] = DefaultInitrdPath
+		var aCopy PackCopies
+
+		aCopy.SrcState = llb.Local(buildContext)
+		aCopy.SrcPath = hops.Rootfs.Path
+		aCopy.DstPath = DefaultInitrdPath
+		instr.Copies = append(instr.Copies, aCopy)
 		instr.Annots["com.urunc.unikernel.initrd"] = DefaultInitrdPath
 	}
 	instr.Annots["com.urunc.unikernel.unikernelType"] = hops.Platform.Framework
@@ -123,7 +139,7 @@ func CheckBunnyfileVersion(userVersion string) error {
 
 // ParseBunnyFile reads a yaml file which contains instructions for
 // bunny.
-func ParseBunnyFile(fileBytes []byte) (*PackInstructions, error) {
+func ParseBunnyFile(fileBytes []byte, buildContext string) (*PackInstructions, error) {
 	var bunnyHops Hops
 
 	err := yaml.Unmarshal(fileBytes, &bunnyHops)
@@ -152,15 +168,14 @@ func ParseBunnyFile(fileBytes []byte) (*PackInstructions, error) {
 		return nil, fmt.Errorf("The path field of kernel is necessary")
 	}
 
-	return HopsToPack(bunnyHops)
+	return HopsToPack(bunnyHops, buildContext)
 }
 
 // ParseDockerFile reads a Dockerfile-like file and returns a Hops
 // struct with the info from the file
-func ParseDockerFile(fileBytes []byte) (*PackInstructions, error) {
+func ParseDockerFile(fileBytes []byte, buildContext string) (*PackInstructions, error) {
 	var instr *PackInstructions
 	instr = new(PackInstructions)
-	instr.Copies = make(map[string]string)
 	instr.Annots = make(map[string]string)
 
 	r := bytes.NewReader(fileBytes)
@@ -186,8 +201,12 @@ func ParseDockerFile(fileBytes []byte) (*PackInstructions, error) {
 			instr.Base = c.BaseName
 		case *instructions.CopyCommand:
 			// Handle COPY
-			//instr.Copies = append(instr.Copies, *c)
-			instr.Copies[c.SourcePaths[0]] = c.DestPath
+			var aCopy PackCopies
+
+			aCopy.SrcState = llb.Local(buildContext)
+			aCopy.SrcPath = c.SourcePaths[0]
+			aCopy.DstPath = c.DestPath
+			instr.Copies = append(instr.Copies, aCopy)
 		case *instructions.LabelCommand:
 			// Handle LABLE annotations
 			for _, kvp := range c.Labels {
@@ -208,7 +227,7 @@ func ParseDockerFile(fileBytes []byte) (*PackInstructions, error) {
 
 // ParseFile identifies the format of the given file and either calls
 // ParseDockerFile or ParseBunnyFile
-func ParseFile(fileBytes []byte) (*PackInstructions, error) {
+func ParseFile(fileBytes []byte, buildContext string) (*PackInstructions, error) {
 	lines := bytes.Split(fileBytes, []byte("\n"))
 
 	// First line is always the #syntax
@@ -222,29 +241,26 @@ func ParseFile(fileBytes []byte) (*PackInstructions, error) {
 	for _, line := range lines[1:] {
 		if len(bytes.TrimSpace(line)) > 0 {
 			if strings.HasPrefix(string(line), "FROM") {
-				return ParseDockerFile(fileBytes)
+				return ParseDockerFile(fileBytes, buildContext)
 			} else {
 				break
 			}
 		}
 	}
 
-	return ParseBunnyFile(fileBytes)
+	return ParseBunnyFile(fileBytes, buildContext)
 }
 
-func copyIn(base llb.State, from string, src string, dst string) llb.State {
-	var copyState llb.State
-	var localSrc llb.State
+func copyIn(to llb.State, from PackCopies) llb.State {
 
-	localSrc = llb.Local(from)
-	copyState = base.File(llb.Copy(localSrc, src, dst, &llb.CopyInfo{
-				CreateDestPath: true,}))
+	copyState := to.File(llb.Copy(from.SrcState, from.SrcPath, from.DstPath,
+				&llb.CopyInfo{CreateDestPath: true,}))
 
 	return copyState
 }
 
 // PackLLB gets a PackInstructions struct and transforms it to an LLB definition
-func PackLLB(instr PackInstructions, buildContext string) (*llb.Definition, error) {
+func PackLLB(instr PackInstructions) (*llb.Definition, error) {
 	var base llb.State
 	uruncJSON := make(map[string]string)
 
@@ -273,8 +289,8 @@ func PackLLB(instr PackInstructions, buildContext string) (*llb.Definition, erro
 	}
 
 	// Perform any copies inside the image
-	for src, dst := range instr.Copies {
-		base = copyIn(base, buildContext, src, dst)
+	for _, aCopy := range instr.Copies {
+		base = copyIn(base, aCopy)
 	}
 
 	// Create the urunc.json file in the rootfs
