@@ -31,12 +31,14 @@ import (
 )
 
 const (
-	DefaultKernelPath  string = "/.boot/kernel"
-	DefaultInitrdPath  string = "/.boot/initrd"
-	unikraftKernelPath string = "/unikraft/bin/kernel"
-	unikraftHub        string = "unikraft.org"
-	uruncJSONPath      string = "/urunc.json"
-	bunnyFileVersion   string = "0.1"
+	DefaultBsdcpioImage  string = "harbor.nbfc.io/nubificus/bunny/libarchive:latest"
+	DefaultInitrdContent string = "/initrd/"
+	DefaultKernelPath    string = "/.boot/kernel"
+	DefaultInitrdPath    string = "/.boot/initrd"
+	unikraftKernelPath   string = "/unikraft/bin/kernel"
+	unikraftHub          string = "unikraft.org"
+	uruncJSONPath        string = "/urunc.json"
+	bunnyFileVersion     string = "0.1"
 )
 
 type HopsPlatform struct {
@@ -47,8 +49,9 @@ type HopsPlatform struct {
 }
 
 type HopsRootfs struct {
-	From string `yaml:"from"`
-	Path string `yaml:"path"`
+	From     string   `yaml:"from"`
+	Path     string   `yaml:"path"`
+	Includes []string `yaml:"include"`
 }
 
 type HopsKernel struct {
@@ -97,14 +100,31 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 		instr.Annots["com.urunc.unikernel.binary"] = hops.Kernel.Path
 	}
 
-	if hops.Rootfs.From == "local" && hops.Platform.Framework == "unikraft" {
+	if hops.Platform.Framework == "unikraft" {
 		var aCopy PackCopies
+		// Make sure SrcPath is set to empty string, so we can check if
+		// we got inside the if clauses and really set the SrcState and SrcPath
+		aCopy.SrcPath = ""
 
-		aCopy.SrcState = llb.Local(buildContext)
-		aCopy.SrcPath = hops.Rootfs.Path
-		aCopy.DstPath = DefaultInitrdPath
-		instr.Copies = append(instr.Copies, aCopy)
-		instr.Annots["com.urunc.unikernel.initrd"] = DefaultInitrdPath
+		if hops.Rootfs.From == "local" {
+			aCopy.SrcState = llb.Local(buildContext)
+			aCopy.SrcPath = hops.Rootfs.Path
+		} else if hops.Rootfs.From == "scratch" {
+			if len(hops.Rootfs.Includes) > 0 {
+				aCopy.SrcState = initrdLLB(hops.Rootfs, buildContext)
+				aCopy.SrcPath = DefaultInitrdPath
+			}
+		} else {
+			aCopy.SrcState = llb.Image(hops.Rootfs.From)
+			aCopy.SrcPath = hops.Rootfs.Path
+		}
+
+		// Add the Copy onli if we got in one of the above if claueses.
+		if aCopy.SrcPath != "" {
+			aCopy.DstPath = DefaultInitrdPath
+			instr.Copies = append(instr.Copies, aCopy)
+			instr.Annots["com.urunc.unikernel.initrd"] = DefaultInitrdPath
+		}
 	}
 	instr.Annots["com.urunc.unikernel.unikernelType"] = hops.Platform.Framework
 	instr.Annots["com.urunc.unikernel.cmdline"] = hops.Cmd
@@ -137,6 +157,63 @@ func CheckBunnyfileVersion(userVersion string) error {
 	return nil
 }
 
+// ValidatePlatform checks if user input meets all conditions regarding the platforms
+// field. The conditions are:
+// 1) framework can not be empty or not set
+// 2) monitor can not be empty or not set
+func ValidatePlatform(plat HopsPlatform) error {
+	if plat.Framework == "" {
+		return fmt.Errorf("The framework field of platforms is necessary")
+	}
+	if plat.Monitor == "" {
+		return fmt.Errorf("The monitor field of platforms is necessary")
+	}
+
+	return nil
+}
+
+// ValidateRootfs checks if user input meets all conditions regarding the rootfs
+// field. The conditions are:
+// 1) if from is empty then path should also be empty
+// 2) if path is empty then from should also be empty
+// 3) if from is not scratch or empty, include should not be set
+// 4) An entry in include can not have the first part (before ":" empty
+func ValidateRootfs(rootfs HopsRootfs) error {
+	if rootfs.From == "" && rootfs.Path != ""  {
+		return fmt.Errorf("The from field of rootfs is necessary, if path is set")
+	}
+	if rootfs.From != "scratch" && rootfs.Path == ""  {
+		return fmt.Errorf("The path field of rootfs is necessary, if from is not scratch")
+	}
+	if len(rootfs.Includes) > 0 && rootfs.From != "scratch" {
+		return fmt.Errorf("Adding files to an existing rootfs is not yet supported")
+	}
+
+	for _, file := range rootfs.Includes {
+		parts := strings.Split(file, ":")
+		if len(parts) < 1 || len(parts[0]) == 0 {
+			return fmt.Errorf("Invalid syntax in rootf's include. AN entry can not have its first part empty")
+		}
+	}
+
+	return nil
+}
+
+// ValidateKernel checks if user input meets all conditions regarding the kernel
+// field. The conditions are:
+// 1) from can not be empty or not set
+// 2) path not be empty or not set
+func ValidateKernel(kernel HopsKernel) error {
+	if kernel.From == "" {
+		return fmt.Errorf("The from field of kernel is necessary")
+	}
+	if kernel.Path == "" {
+		return fmt.Errorf("The path field of kernel is necessary")
+	}
+
+	return nil
+}
+
 // ParseBunnyFile reads a yaml file which contains instructions for
 // bunny.
 func ParseBunnyFile(fileBytes []byte, buildContext string) (*PackInstructions, error) {
@@ -147,25 +224,28 @@ func ParseBunnyFile(fileBytes []byte, buildContext string) (*PackInstructions, e
 		return nil, err
 	}
 
-	err =  CheckBunnyfileVersion(bunnyHops.Version)
+	err = CheckBunnyfileVersion(bunnyHops.Version)
 	if err != nil {
 		return nil, err
 	}
 
-	if bunnyHops.Platform.Framework == "" {
-		return nil, fmt.Errorf("The framework field of platforms is necessary")
+	err = ValidatePlatform(bunnyHops.Platform)
+	if err != nil {
+		return nil, err
 	}
 
-	if bunnyHops.Platform.Monitor == "" {
-		return nil, fmt.Errorf("The monitor field of platforms is necessary")
+	err = ValidateKernel(bunnyHops.Kernel)
+	if err != nil {
+		return nil, err
 	}
 
-	if bunnyHops.Kernel.From == "" {
-		return nil, fmt.Errorf("The from field of kernel is necessary")
+	// Set default value of from to scratch if include is specified.
+	if bunnyHops.Rootfs.From == "" && len(bunnyHops.Rootfs.Includes) > 0 {
+		bunnyHops.Rootfs.From = "scratch"
 	}
-
-	if bunnyHops.Kernel.Path == "" {
-		return nil, fmt.Errorf("The path field of kernel is necessary")
+	err = ValidateRootfs(bunnyHops.Rootfs)
+	if err != nil {
+		return nil, err
 	}
 
 	return HopsToPack(bunnyHops, buildContext)
@@ -249,6 +329,35 @@ func ParseFile(fileBytes []byte, buildContext string) (*PackInstructions, error)
 	}
 
 	return ParseBunnyFile(fileBytes, buildContext)
+}
+
+// Create a LLB State that creates an initrd based on the data from the HopsRootfs
+// argument
+func initrdLLB(initrdContent HopsRootfs, buildContext string) llb.State {
+	base := llb.Image(DefaultBsdcpioImage, llb.WithCustomName("Internal:Create initrd"))
+
+	base = base.File(llb.Mkdir(DefaultInitrdContent, 0755))
+	base = base.File(llb.Mkdir("/.boot/", 0755))
+	base = base.File(llb.Mkdir("/tmp", 0755))
+	local := llb.Local(buildContext)
+	for _, file := range initrdContent.Includes {
+		var aCopy PackCopies
+
+		parts := strings.Split(file, ":")
+		aCopy.SrcState = local
+		aCopy.SrcPath = parts[0]
+		// If user did not define destination path, use the same as the source
+		aCopy.DstPath = DefaultInitrdContent + parts[0]
+		if len(parts) != 1 && len(parts[1]) > 0 {
+			aCopy.DstPath = DefaultInitrdContent + parts[1]
+		}
+		base = copyIn(base, aCopy)
+	}
+
+	base = base.Dir(DefaultInitrdContent).
+		Run(llb.Shlexf("sh -c \"find . -depth -print | tac | bsdcpio -o --format newc > %s\"", DefaultInitrdPath)).Run(llb.Shlex("find /.boot/")).Root()
+
+	return base
 }
 
 func copyIn(to llb.State, from PackCopies) llb.State {
