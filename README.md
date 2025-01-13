@@ -4,17 +4,17 @@ Unikernels is a promising technology that can achieve extremely fast boot times,
 a smaller memory footprint, increased performance, and more robust security than
 containers. Therefore, Unikernels could be very useful in cloud deployments,
 especially for microservices and function deployments. However, Unikernels are
-notorious for being difficult to build and even execute them.
+notorious for being difficult to build and even deploy them.
 
 In order to provide a user-friendly build process for unikernels and let the
 users build and use them as easy as containers we build `bunny`. The main goal
 of `bunny` is to provide a unified and simplified process of building and
 packaging unikernels. With `bunny`, a user can simply build an application as a
-unikernel and get its binary or even package it as an OCI image with all
+unikernel and even package it as an OCI image with all
 necessary metadata to run it with [urunc](https://github.com/nubificus/urunc).
 
 `bunny` is based on [pun](https://github.com/nubificus/pun) a tool that packages
-already built unikernels in OCI images for `urunc`. THis functionality is and
+already built unikernels in OCI images for `urunc`. This functionality is and
 will be supported from `bunny` as well. However, `bunny` is also able to build
 unikernels from scratch.
 
@@ -36,16 +36,16 @@ use for 'bunny' needs to start with the following line.
 
 Then, we can just execute docker build as usual. Buildkit will fetch an image
 containing `bunny` and it will use it as a frontend. Therefore, anyone can use
-`bunny` directly without even building or fetching its binary.
+`bunny` directly without even building or installing its binary.
 
 ### Using buildctl
 
-In order to use `bunny` with buildctl, we have to build it locally and then feed
+In order to use `bunny` with buildctl, we have to build it locally, run it and then feed
 its output to buildctl.
 
 #### How to build
 
-We can build `bunny` by simply running make:
+We can easily build `bunny` by simply running make:
 
 ```
 make
@@ -55,212 +55,145 @@ make
 
 #### How to use
 
-`bunny` makes use of Buildkit and LLB. As a result, the application itself does
-not produce any artifacts, but just a LLB graph which we can later feed to
-buildkit. Therefore, in order to use `bunny`, we need to firstly install buildkit.
+In the case of buildctl, `bunny` does not produce any artifact by itself.
+Instead, it outputs a LLB that we can then feed in buildctl. 
+Therefore, in order to use `bunny`, we need to firstly install buildkit.
 For more information regarding building and installing buildkit, please refer
 to buildkit
 [instructions](https://github.com/moby/buildkit?tab=readme-ov-file#quick-start).
 
-As long as buildkit is installed in our system, we can package any unikernel
+As long as buildkit is running in our system, we can use `bunny`
 with the following command:
 ```
-./bunny --LLB -f Containerfile | sudo buildctl build ... --local context=<path_to_local_context> --output type=<type>,<type-specific-args>
+./bunny --LLB -f bunnyfile | sudo buildctl build ... --local context=<path_to_local_context> --output type=<type>,<type-specific-args>
 ```
 
-`bunny` takes as an argument the `Containerfile` a
-Dockerfile-syntax file with the packaging instructions.
+`bunny` takes as an argument the `bunnyfile` a
+yaml file with instructions to build and package unikernels. For more
+information regarding bunnyfile please check the [respective
+section](#Bunnyfile)
 
 Regarding the buildctl arguments:
-- `--local context` specifies the directory where the user wants to set the
-  local context. It is similar to the build context in the docker build command.
-Therefore, if we specify any `COPY` instructions in the `Containerfile`, the
-paths will be relative to this argument.
+- `--local context` specifies the directory of the local context. It is similar
+  to the build context in the docker build command.  Therefore, if we specify
+  want to copy any file from the host, the path should be relative to the
+  directory of this argument.
 - `--output type=<type>` specifies the output format. Buildkit supports various
   [outputs](https://github.com/moby/buildkit/tree/master?tab=readme-ov-file#output).
   Just for convenience we mention the `docker` output, which produces an output
   that we can pass to `docker load` in order to place our image in the local
   docker registry. We can also specify the name of the image, using the
-  `name=<name` in the ``<type-specific-option>`.
+  `name=<name` in the `<type-specific-option>`.
 
 For instance:
 
 ```
-./bunny --LLB -f Containerfile | sudo buildctl build ... --local context=/home/ubuntu/unikernels/ --output type=docker,name=harbor.nbfc.io/nubificus/urunc/bunny:latest | sudo docker load
+./bunny --LLB -f bunnyfile | sudo buildctl build ... --local context=/home/ubuntu/unikernels/ --output type=docker,name=harbor.nbfc.io/nubificus/urunc/built-by-bunny:latest | sudo docker load
 ```
 
-#### The Containerfile format
+## Bunnyfile
 
-`bunny` supports Dockerfile-style files as input. Therefore, any such file can be
-given as input. However, it is important to note, that `bunny`'s OCI images are
-built for `urunc`. Therefore, currently only the following
-instructions are supported:
-- `FROM`: Specifies the base image. It can be any image or just `scratch`
-- `COPY`: Copies local files inside the image as a new layer.
-- `LABEL`: Specifies annotations for the image.
-
-All the other instructions will get ignored.
-
-## Annotations
-
-In order to execute unikernels as containers, we need `urunc` a container runtime that
-can handle and manage the execution of unikernels. However, `urunc` needs to
-differenciate typical containers from unikernels. One way of `urunc` to achieve
-this is by using 
-annotations in the container image. As such, `bunny` treats all Labels defined in the
-Containerfile as annotations. In particular, the annotations will be stored in
-the image manifest.
-
-### Docker and annotations
-
-In order to make use of this feature, `bunny` should be used from a tool that
-can export the image in the OCI format. According to [docker's
-documentation](https://docs.docker.com/build/exporters/oci-docker/), the
-default docker driver does not support exports in the OCI format. Instead,
-someone needs to use a [Docker container build
-driver](https://docs.docker.com/build/builders/drivers/docker-container/).
-Another way to use `bunny` and export the image in the OCI format is through
-[buildctl](https://github.com/moby/buildkit?tab=readme-ov-file#output). In both
-cases, the annotations will remain in the image setting the following options:
-1. Choose image or OCI as an output type.
-2. Use the `oci-mediatypes=true` option
-3. make sure to immediately push the image in a registry.
-
-Therofore, a docker buildx command could be:
-```
-docker buildx build --builder=<container-build-driver>  --output "type=image,oci-mediatypes=true" -f <path-to-Containerfile>r -t <image-name> --push=true <path-tobuild-context>
-```
-
-Similarly a buildctl command could be:
- ```
-buildctl build --frontend gateway.v0 --opt source=harbor.nbfc.io/nubificus/urunc/bunny/llb:latest --output "type=image,name=<image-name>,oci-mediatypes=true,push=true" --local context=<path-to-build-context> --local dockerfile=<path-to-dir-containing-Containerfile> -opt filename=<name-of-Containerfile>
- ```
-
-Furthermore, it is important to note that the Docker Engine does not support
-annotations. For more information, take a look in [docker's
-documentation](https://docs.docker.com/build/metadata/annotations/#add-annotations%CE%B5%CE%AF%CE%BD%CE%B1%CE%B9).
-Subsequently, pulling any image built with `bunny` that has annotations in a local
-docker Engine registry will result to losing all the annotations. For this
-reason we need to push the output image immediately after build and not
-store it locally.
-
-## Examples
-
-### Packaging a rumprun unikernel with `bunny` as buildkit's frontend
-
-In case we have already built a rumprun unikernel, we can easily package it with
-a normal docker command that will use `bunny`. To do that we need the following
-`Containerfile`:
-```
-#syntax=harbor.nbfc.io/nubificus/bunny:latest
-FROM scratch
-
-COPY test-redis.hvt /unikernel/test-redis.hvt
-COPY redis.conf /conf/redis.conf
-
-LABEL com.urunc.unikernel.binary=/unikernel/test-redis.hvt
-LABEL "com.urunc.unikernel.cmdline"='redis-server /data/conf/redis.conf'
-LABEL "com.urunc.unikernel.unikernelType"="rumprun"
-LABEL "com.urunc.unikernel.hypervisor"="hvt"
-```
-
-We can then build the image with the following command:
-```
-docker build -f Containerfile -t harbor.nbfc.io/nubificus/urunc/redis-rumprun-hvt:test .
-```
-The image will get loaded in the local docker registry. If we want to build with [annotations](#Docker-and-annotations)
+Similarly to `docker`, `bunny` takes as an in put a file following the
+`bunnyfile` format. It is based on yaml and it includes all the information for
+building an application as a Unikernel, along with instructions on how to
+package the Unikernel, along with other files that the application requires.
 
 ```
-docker buildx build --builder=<container-build-driver>  --output "type=image,oci-mediatypes=true" -f Containerfile -t harbor.nbfc.io/nubificus/urunc/redis-rumprun-hvt:test --push=true .
+#syntax=harbor.nbfc.io/nubificus/bunny:latest   # [1] Set bunnyfile syntax for automatic recognition from docker.
+version: v0.1                                   # [2] Bunnyfile version.
+
+platforms:                                      # [3] The target unikernel platform for building/packaging.
+  framework: unikraft                           # [3a] The unikernel framework.
+  version: v0.15.0                              # [3b] The version of the unikernel framework.
+  monitor: qemu                                 # [3c] The hypervisor/VMM or any other kind of monitor, where the unikernel will run  on top.
+  architecture: x86                             # [3d] The host architecture where the unikernel will run.
+
+rootfs:                                         # [4] (Optional) Specifies the rootfs of the unikernel.
+  from: local                                   # [4a] (Optional) The source of the initrd.
+  path: initrd                                  # [4b] (Required if from is not scratch) The path in the source, where a prebuilt rootfs file resides.
+
+kernel:                                         # [5] Specify a prebuilt kernel to use
+  from: local                                   # [5a] Specify the source of an existing prebuilt kernel.
+  path: local                                   # [5b] Specify the path to the kernel image inside the KernelSource.
+
+cmdline: hello                                  # [6] The cmdline of the app
+
 ```
 
-The image will get pushed in the registry.
+The fields of `bunnyfile` in more details:
+1. A docker syntax directive. It is required to let the buildkit choose `bunny`
+   as a frontend, instead of the default dockerfile frontend.
+2. The version of the `bunnyfile` format. It is required to prevent
+   incompatibilities with different versions.
+3. The platform to target for building/packaging the unikernel.
+    3a. The unikernel framework to target.
+    3b. The version of unikernel framework to target.
+    3c. The hypervisor/VMM or any other runtime/monitor where the unikernel will
+        run on top. Current supported values are:
+        [qemu](https://www.qemu.org/),
+        [firecracker](https://github.com/firecracker-microvm/firecracker),
+        [hvt](https://github.com/Solo5/solo5),
+        [Spt](https://github.com/Solo5/solo5).
+    3d. The architecture of the host where the unikernel will run.
+4. (Optional) The rootfs of the unikernel. For the time being, only prebuilt rootfs files are supported and `bunny` will package everything as an OCI image with the respective annotations for [urunc](https://github.com/Solo5/solo5).
+    4a. The source where an existing rootfs file is stored. Current supported
+        values are: local, meaning that the file resides somewhere locally.
+    4b. This field is required, if from is specified and has a value other than
+        `scratch`.The path in the source where the existing rootfs file resides. In the
+        case where the `from` field has the value `local`, then the `path` should
+        be relative to the build context.
+5. Information regarding an existing prebuilt kernel to use. For the time
+   being, `bunny` supports only prebuilt unikernels and `bunny` will package
+   everything as an OCI image with the respective annotations for
+   [urunc](https://github.com/Solo5/solo5).
+    5a. The source where an existing kernel is stored. Currently, only the
+        `local` value is supported, meaning that the file resides in somewhere locally.
+    5b. The path in the source where an existing kernel resides. In the case
+        where the `kernelSource` field has the value `local`, then the
+        `kernelPath` should be relative to the build context.
 
-### Packaging a unikraft unikernel with `bunny` as buildkit's frontend
+> **_NOTE:_**  Except of the `bunnyfile`, `bunny` supports the Dockerfile-like
+> file that [pun](https://github.com/nubificus/pun?tab=readme-ov-file#the-containerfile-format) and
+> [bima](https://github.com/nubificus/bima?tab=readme-ov-file#how-bima-works) takes as input.
 
-In case we want to use an existing [unikraft](unikraft.org) unikernel image from
-[unikraft's catalog](https://github.com/unikraft/catalog), we can transform it
-to an image that `urunc` can execute with `bunny`. In that case the
-`Containerfile` should look like:
+## Trying it out
+
+The easiest and more effortless way to try out `bunny` would be using it as a
+buildkit's frontend. Therefore, assuming that we have an existing Unikraft
+unikernel with its initrd already prebuilt, we can package everything as an OCI
+image for [urunc](https://github.com/nubificus/urunc) with the following
+`bunnyfile`:
+
 ```
 #syntax=harbor.nbfc.io/nubificus/bunny:latest
-FROM unikraft.org/nginx:1.15
+version: v0.1
 
-LABEL com.urunc.unikernel.binary="/unikraft/bin/kernel"
-LABEL "com.urunc.unikernel.cmdline"="nginx -c /nginx/conf/nginx.conf"
-LABEL "com.urunc.unikernel.unikernelType"="unikraft"
-LABEL "com.urunc.unikernel.hypervisor"="qemu"
+platforms:
+  framework: unikraft
+  version: 0.17.0
+  monitor: qemu
+  architecture: x86
+
+rootfs:
+  from: local
+  path: initramfs-x86_64.cpio
+
+kernel:
+  from: local
+  path: kernel
+
+cmdline: /server
 ```
 
-We can then build the image with the following command:
+We can then package everything with the following command:
 
 ```
-docker build -f Containerfile -t harbor.nbfc.io/nubificus/urunc/nginx-unikraft-qemu:test .
+docker build -f bunnyfile -t harbor.nbfc.io/nubificus/urunc/httpc-unikraft-qemu:test .
 ```
 
-The image will get loaded in the local docker registry. If we want to build
-with [annotations](#Docker-and-annotations):
+The above `bunnyfile` will package an existing Unikraft unikernel that we
+obtained from [http-c example in Unikraft's
+catalog](https://github.com/unikraft/catalog/tree/main/examples/http-c). 
 
-```
-docker buildx build --builder=<container-build-driver>  --output "type=image,oci-mediatypes=true" -f Containerfile -t harbor.nbfc.io/nubificus/urunc/nginx-unikraft-qemu:test --push=true .
-```
-
-The image will get pushed in the registry.
-
-### Packaging a rumprun unikernel with `bunny` and buildctl
-
-In case we have already built a rumprun unikernel, we can easily package it with
-`bunny` using the following `Containerfile`:
-```
-FROM scratch
-
-COPY test-redis.hvt /unikernel/test-redis.hvt
-COPY redis.conf /conf/redis.conf
-
-LABEL com.urunc.unikernel.binary=/unikernel/test-redis.hvt
-LABEL "com.urunc.unikernel.cmdline"='redis-server /data/conf/redis.conf'
-LABEL "com.urunc.unikernel.unikernelType"="rumprun"
-LABEL "com.urunc.unikernel.hypervisor"="hvt"
-```
-
-We can then build the image with the following command:
-```
-./bunny --LLB -f Containerfile | sudo buildctl build ... --local context=${PWD} --output type=docker,name=harbor.nbfc.io/nubificus/urunc/redis-rumprun-hvt:test | sudo docker load
---output "type=image,name=<image-name>,oci-mediatypes=true,push=true"
-```
-The image will get loaded in the local docker registry. If we want to build with [annotations](#Docker-and-annotations):
-```
-./bunny --LLB -f Containerfile | sudo buildctl build ... --local context=${PWD} --output "type=image,name=harbor.nbfc.io/nubificus/urunc/redis-rumprun-hvt:test,oci-mediatypes=true,push=true"
-```
-
-The image will get pushed in the registry.
-
-### Packaging a unikraft unikernel with `bunny` with buildctl
-
-In case we want to use an existing [unikraft](unikraft.org) unikernel image from
-[unikraft's catalog](https://github.com/unikraft/catalog), we can transform it
-to an image that `urunc` can execute with `bunny`. In that case the
-`Containerfile` should look like:
-
-```
-FROM unikraft.org/nginx:1.15
-
-LABEL com.urunc.unikernel.binary="/unikraft/bin/kernel"
-LABEL "com.urunc.unikernel.cmdline"="nginx -c /nginx/conf/nginx.conf"
-LABEL "com.urunc.unikernel.unikernelType"="unikraft"
-LABEL "com.urunc.unikernel.hypervisor"="qemu"
-```
-
-We can then build the image with the following command:
-```
-./bunny -LLB -f Containerfile | sudo buildctl build ... --local context=${PWD} --output type=docker,name=harbor.nbfc.io/nubificus/urunc/nginx-unikraft-qemu:test | sudo docker load
-```
-
-The image will get loaded in the local docker registry. If we want to build
-the image with [annotations](#Docker-and-annotations):
-
-```
-./bunny --LLB -f Containerfile | sudo buildctl build ... --local context=${PWD} --output "type=image,name=harbor.nbfc.io/nubificus/urunc/nginx-unikraft-qemu:test,oci-mediatypes=true,push=true"
-```
-
-The image will get pushed in the registry.
+For more examples, please take a look in the [examples
+directory](https://github.com/nubificus/bunny/tree/main/examples/README.md)..
