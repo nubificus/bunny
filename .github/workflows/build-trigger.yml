@@ -37,7 +37,8 @@ jobs:
             dockerfile:
               - 'Dockerfile'
             go:
-              - '*.go'
+              - 'cmd/*.go'
+              - 'hops/*.go'
               - 'Makefile'
               - '*.mod'
 
