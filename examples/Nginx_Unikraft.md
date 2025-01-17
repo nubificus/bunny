@@ -7,7 +7,8 @@ execute with `bunny`. The respective `Containerfile` that we would use with
 [pun](https://github.com/nubificus/pun) would be:
 
 ```
-#syntax=harbor.nbfc.io/nubificus/bunny:latest FROM unikraft.org/nginx:1.15
+#syntax=harbor.nbfc.io/nubificus/bunny:latest
+FROM unikraft.org/nginx:1.15
 
 LABEL com.urunc.unikernel.binary="/unikraft/bin/kernel"
 LABEL "com.urunc.unikernel.cmdline"="nginx -c /nginx/conf/nginx.conf"
@@ -41,7 +42,7 @@ In the case, we want to build the image directly through docker, using `bunny`
 as a frontend for buildkit, we can simply run the following command:
 
 ```
-docker build -f Containerfile -t harbor.nbfc.io/nubificus/urunc/nginx-unikraft-qemu:test .
+docker build -f bunnyfile -t harbor.nbfc.io/nubificus/urunc/nginx-unikraft-qemu:test .
 ```
 
 The image will get loaded in the local docker registry. If we want to build with
@@ -49,7 +50,7 @@ The image will get loaded in the local docker registry. If we want to build with
 command should change to the following:
 
 ```
-docker buildx build --builder=<container-build-driver>  --output "type=image,oci-mediatypes=true" -f Containerfile -t harbor.nbfc.io/nubificus/urunc/nginx-unikraft-qemu:test --push=true .
+docker buildx build --builder=<container-build-driver>  --output "type=image,oci-mediatypes=true" -f bunnyfile -t harbor.nbfc.io/nubificus/urunc/nginx-unikraft-qemu:test --push=true .
 ```
 
 The image will get pushed in the registry.
@@ -60,7 +61,7 @@ In the case we want to use `bunny` and produce a LLB to pass it to buildctl,
 We can build the image with the following command:
 
 ```
-./bunny -LLB -f Containerfile | sudo buildctl build ... --local context=${PWD} --output type=docker,name=harbor.nbfc.io/nubificus/urunc/nginx-unikraft-qemu:test | sudo docker load
+./bunny -LLB -f bunnyfile | sudo buildctl build ... --local context=${PWD} --output type=docker,name=harbor.nbfc.io/nubificus/urunc/nginx-unikraft-qemu:test | sudo docker load
 ```
 
 The image will get loaded in the local docker registry. If we want to build with
@@ -68,8 +69,10 @@ The image will get loaded in the local docker registry. If we want to build with
 command should change to the following:
 
 ```
-./bunny --LLB -f Containerfile | sudo buildctl build ... --local context=${PWD} --output "type=image,name=harbor.nbfc.io/nubificus/urunc/nginx-unikraft-qemu:test,oci-mediatypes=true,push=true"
+./bunny --LLB -f bunnyfile | sudo buildctl build ... --local context=${PWD} --output "type=image,name=harbor.nbfc.io/nubificus/urunc/nginx-unikraft-qemu:test,oci-mediatypes=true,push=true"
 ```
 
 The image will get pushed in the registry.
 
+> **NOTE**: In the above commands by simply replacing bunnyfile with
+> Containerfile and simply switch from one to the other file formats.
