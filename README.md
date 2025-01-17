@@ -111,6 +111,8 @@ platforms:                                      # [3] The target unikernel platf
 rootfs:                                         # [4] (Optional) Specifies the rootfs of the unikernel.
   from: local                                   # [4a] (Optional) The source of the initrd.
   path: initrd                                  # [4b] (Required if from is not scratch) The path in the source, where a prebuilt rootfs file resides.
+  include:                                      # [4c] (Optional) A list of files to include in the rootfs
+    - src:dst
 
 kernel:                                         # [5] Specify a prebuilt kernel to use
   from: local                                   # [5a] Specify the source of an existing prebuilt kernel.
@@ -135,13 +137,20 @@ The fields of `bunnyfile` in more details:
         [hvt](https://github.com/Solo5/solo5),
         [Spt](https://github.com/Solo5/solo5).
     3d. The architecture of the host where the unikernel will run.
-4. (Optional) The rootfs of the unikernel. For the time being, only prebuilt rootfs files are supported and `bunny` will package everything as an OCI image with the respective annotations for [urunc](https://github.com/Solo5/solo5).
+4. (Optional) The rootfs of the unikernel. Currently, `bunny` is able to either
+   package existing rootfs files, or to build the rootfs in the form of an
+   initrd.
     4a. The source where an existing rootfs file is stored. Current supported
-        values are: local, meaning that the file resides somewhere locally.
-    4b. This field is required, if from is specified and has a value other than
-        `scratch`.The path in the source where the existing rootfs file resides. In the
+        values are: i) `scratch`, meaning that the rootfs should get built from
+        scratch, and ii) `local`, meaning that an existing rootfs file resides
+        somewhere locally. The default value is `scratch`.
+    4b. The path for the file in the aformentioned source. This field is
+        required, if `from` has a value other than `scratch`..In the
         case where the `from` field has the value `local`, then the `path` should
         be relative to the build context.
+    4c. A list of files to include in the rootfs. This field takes effect only
+        when the `from` field has the value `scratch`. The files can be defined
+        in the following format: `- <path_in_the_build_context>:<path_inside_rootfs>`. The `<path_inside_rootfs>` can be omitted and then the same path as the one in `<path_in_the_build_context>` will be used.
 5. Information regarding an existing prebuilt kernel to use. For the time
    being, `bunny` supports only prebuilt unikernels and `bunny` will package
    everything as an OCI image with the respective annotations for
