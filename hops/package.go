@@ -34,7 +34,7 @@ const (
 	DefaultBsdcpioImage  string = "harbor.nbfc.io/nubificus/bunny/libarchive:latest"
 	DefaultInitrdContent string = "/initrd/"
 	DefaultKernelPath    string = "/.boot/kernel"
-	DefaultInitrdPath    string = "/.boot/initrd"
+	DefaultRootfsPath    string = "/.boot/rootfs"
 	unikraftKernelPath   string = "/unikraft/bin/kernel"
 	unikraftHub          string = "unikraft.org"
 	uruncJSONPath        string = "/urunc.json"
@@ -51,6 +51,7 @@ type HopsPlatform struct {
 type HopsRootfs struct {
 	From     string   `yaml:"from"`
 	Path     string   `yaml:"path"`
+	Type     string   `yaml:"type"`
 	Includes []string `yaml:"include"`
 }
 
@@ -74,7 +75,7 @@ type PackCopies struct {    // A struct to represent a copy operation in the fin
 }
 
 type PackInstructions struct {
-	Base   string            // The Base image to use
+	Base   llb.State         // The Base image to use
 	Copies []PackCopies      // A list of packCopies, rpresenting the files to copy inside the final image
 	Annots map[string]string // Annotations
 }
@@ -84,11 +85,12 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 	var instr *PackInstructions
 	instr = new(PackInstructions)
 	instr.Annots = make(map[string]string)
+	instr.Annots["com.urunc.unikernel.useDMBlock"] = "false"
 
 	if hops.Kernel.From == "local" {
 		var aCopy PackCopies
 
-		instr.Base = "scratch"
+		instr.Base = llb.Scratch()
 		instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
 
 		aCopy.SrcState = llb.Local(buildContext)
@@ -96,7 +98,7 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 		aCopy.DstPath = DefaultKernelPath
 		instr.Copies = append(instr.Copies, aCopy)
 	} else {
-		instr.Base = hops.Kernel.From
+		instr.Base = getBase(hops.Kernel.From)
 		instr.Annots["com.urunc.unikernel.binary"] = hops.Kernel.Path
 	}
 
@@ -112,7 +114,7 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 		} else if hops.Rootfs.From == "scratch" {
 			if len(hops.Rootfs.Includes) > 0 {
 				aCopy.SrcState = initrdLLB(hops.Rootfs, buildContext)
-				aCopy.SrcPath = DefaultInitrdPath
+				aCopy.SrcPath = DefaultRootfsPath
 			}
 		} else {
 			aCopy.SrcState = llb.Image(hops.Rootfs.From)
@@ -121,9 +123,67 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 
 		// Add the Copy onli if we got in one of the above if claueses.
 		if aCopy.SrcPath != "" {
-			aCopy.DstPath = DefaultInitrdPath
+			aCopy.DstPath = DefaultRootfsPath
 			instr.Copies = append(instr.Copies, aCopy)
-			instr.Annots["com.urunc.unikernel.initrd"] = DefaultInitrdPath
+			instr.Annots["com.urunc.unikernel.initrd"] = DefaultRootfsPath
+		}
+	} else {
+		var aCopy PackCopies
+		// Make sure SrcPath is set to empty string, so we can check if
+		// we got inside the if clauses and really set the SrcState and SrcPath
+		aCopy.SrcPath = ""
+
+		if hops.Rootfs.From == "local" {
+			aCopy.SrcState = llb.Local(buildContext)
+			aCopy.SrcPath = hops.Rootfs.Path
+		} else if (hops.Rootfs.From == "scratch" || hops.Rootfs.From == "") {
+			if len(hops.Rootfs.Includes) > 0 {
+				if hops.Rootfs.Type == "initrd" {
+					aCopy.SrcState = initrdLLB(hops.Rootfs, buildContext)
+					aCopy.SrcPath = DefaultRootfsPath
+				} else if hops.Rootfs.Type == "raw" {
+					instr.Annots["com.urunc.unikernel.useDMBlock"] = "true"
+					if hops.Kernel.From != "local" {
+						var kernelCopy PackCopies
+						kernelCopy.SrcState = instr.Base
+						kernelCopy.SrcPath = hops.Kernel.Path
+						kernelCopy.DstPath = DefaultKernelPath
+						instr.Copies = append(instr.Copies, kernelCopy)
+						instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+					}
+					instr.Base = FilesLLB(hops.Rootfs, buildContext)
+				}
+			}
+		} else {
+			if hops.Rootfs.Path != "" {
+				aCopy.SrcState = llb.Image(hops.Rootfs.From)
+				aCopy.SrcPath = hops.Rootfs.Path
+			} else {
+				if hops.Rootfs.Type == "raw" {
+					instr.Annots["com.urunc.unikernel.useDMBlock"] = "true"
+				}
+				if hops.Kernel.From != "local" {
+					var kernelCopy PackCopies
+					kernelCopy.SrcState = instr.Base
+					kernelCopy.SrcPath = hops.Kernel.Path
+					kernelCopy.DstPath = DefaultKernelPath
+					instr.Copies = append(instr.Copies, kernelCopy)
+					instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+				}
+				instr.Base = getBase(hops.Rootfs.From)
+			}
+		}
+
+		// Add the Copy only if we got in one of the above if claueses.
+		if aCopy.SrcPath != "" {
+			aCopy.DstPath = DefaultRootfsPath
+			instr.Copies = append(instr.Copies, aCopy)
+			if hops.Rootfs.Type == "initrd" {
+				instr.Annots["com.urunc.unikernel.initrd"] = DefaultRootfsPath
+			} else if hops.Rootfs.Type == "block" {
+				instr.Annots["com.urunc.unikernel.block"] = DefaultRootfsPath
+				instr.Annots["com.urunc.unikernel.blkMntPoint"] = "/"
+			}
 		}
 	}
 	instr.Annots["com.urunc.unikernel.unikernelType"] = hops.Platform.Framework
@@ -179,11 +239,14 @@ func ValidatePlatform(plat HopsPlatform) error {
 // 3) if from is not scratch or empty, include should not be set
 // 4) An entry in include can not have the first part (before ":" empty
 func ValidateRootfs(rootfs HopsRootfs) error {
-	if rootfs.From == "" && rootfs.Path != ""  {
-		return fmt.Errorf("The from field of rootfs is necessary, if path is set")
+	if (rootfs.From == "scratch" || rootfs.From == "") && rootfs.Path != "" {
+		return fmt.Errorf("The from field of rootfs can not be empty or scratch, if path is set")
 	}
-	if rootfs.From != "scratch" && rootfs.Path == ""  {
-		return fmt.Errorf("The path field of rootfs is necessary, if from is not scratch")
+	if rootfs.Path != "" && rootfs.Type == "raw" {
+		return fmt.Errorf("The path field in rootfs can not be combined with a raw rootfs")
+	}
+	if rootfs.From == "local" && rootfs.Type == "raw"  {
+		return fmt.Errorf("If type of rootfs is raw, then from can not be local")
 	}
 	if len(rootfs.Includes) > 0 && rootfs.From != "scratch" {
 		return fmt.Errorf("Adding files to an existing rootfs is not yet supported")
@@ -243,6 +306,10 @@ func ParseBunnyFile(fileBytes []byte, buildContext string) (*PackInstructions, e
 	if bunnyHops.Rootfs.From == "" && len(bunnyHops.Rootfs.Includes) > 0 {
 		bunnyHops.Rootfs.From = "scratch"
 	}
+	if (bunnyHops.Rootfs.From == "scratch" || bunnyHops.Rootfs.From == "") && bunnyHops.Rootfs.Type == "" {
+
+		bunnyHops.Rootfs.Type = "raw"
+	}
 	err = ValidateRootfs(bunnyHops.Rootfs)
 	if err != nil {
 		return nil, err
@@ -257,6 +324,8 @@ func ParseDockerFile(fileBytes []byte, buildContext string) (*PackInstructions, 
 	var instr *PackInstructions
 	instr = new(PackInstructions)
 	instr.Annots = make(map[string]string)
+	instr.Base = llb.Scratch()
+	setStage := false
 
 	r := bytes.NewReader(fileBytes)
 
@@ -275,10 +344,11 @@ func ParseDockerFile(fileBytes []byte, buildContext string) (*PackInstructions, 
 		switch c := cmd.(type) {
 		case *instructions.Stage:
 			// Handle FROM
-			if instr.Base != "" {
+			if setStage {
 				return nil, fmt.Errorf("Multi-stage builds are not supported")
 			}
-			instr.Base = c.BaseName
+			setStage = true
+			instr.Base = getBase(c.BaseName)
 		case *instructions.CopyCommand:
 			// Handle COPY
 			var aCopy PackCopies
@@ -331,6 +401,29 @@ func ParseFile(fileBytes []byte, buildContext string) (*PackInstructions, error)
 	return ParseBunnyFile(fileBytes, buildContext)
 }
 
+// Create a LLB State that simply copies all the files in the include list inside
+// an empty image
+func FilesLLB(contents HopsRootfs, buildContext string) llb.State {
+	base := llb.Scratch()
+
+	local := llb.Local(buildContext, llb.WithCustomName("Internal:Copy local files"))
+	for _, file := range contents.Includes {
+		var aCopy PackCopies
+
+		parts := strings.Split(file, ":")
+		aCopy.SrcState = local
+		aCopy.SrcPath = parts[0]
+		// If user did not define destination path, use the same as the source
+		aCopy.DstPath = parts[0]
+		if len(parts) != 1 && len(parts[1]) > 0 {
+			aCopy.DstPath = parts[1]
+		}
+		base = copyIn(base, aCopy)
+	}
+
+	return base
+}
+
 // Create a LLB State that creates an initrd based on the data from the HopsRootfs
 // argument
 func initrdLLB(initrdContent HopsRootfs, buildContext string) llb.State {
@@ -355,7 +448,7 @@ func initrdLLB(initrdContent HopsRootfs, buildContext string) llb.State {
 	}
 
 	base = base.Dir(DefaultInitrdContent).
-		Run(llb.Shlexf("sh -c \"find . -depth -print | tac | bsdcpio -o --format newc > %s\"", DefaultInitrdPath)).Run(llb.Shlex("find /.boot/")).Root()
+		Run(llb.Shlexf("sh -c \"find . -depth -print | tac | bsdcpio -o --format newc > %s\"", DefaultRootfsPath)).Run(llb.Shlex("find /.boot/")).Root()
 
 	return base
 }
@@ -368,10 +461,31 @@ func copyIn(to llb.State, from PackCopies) llb.State {
 	return copyState
 }
 
+// Set the base image where we will pack the unikernel
+func getBase(inputBase string) llb.State {
+	var retBase llb.State
+
+	if inputBase == "scratch" {
+		retBase = llb.Scratch()
+	} else if strings.HasPrefix(inputBase, unikraftHub) {
+		// Define the platform to qemu/amd64 so we cna pull unikraft images
+		platform := ocispecs.Platform{
+			OS:           "qemu",
+			Architecture: "amd64",
+		}
+		retBase = llb.Image(inputBase, llb.Platform(platform),)
+	} else {
+		retBase = llb.Image(inputBase)
+	}
+
+	return retBase
+}
+
 // PackLLB gets a PackInstructions struct and transforms it to an LLB definition
 func PackLLB(instr PackInstructions) (*llb.Definition, error) {
 	var base llb.State
 	uruncJSON := make(map[string]string)
+	base = instr.Base
 
 	// Create urunc.json file, since annotations do not reach urunc
 	for annot, val := range instr.Annots {
@@ -381,20 +495,6 @@ func PackLLB(instr PackInstructions) (*llb.Definition, error) {
 	uruncJSONBytes, err := json.Marshal(uruncJSON)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to marshal urunc json: %v", err)
-	}
-
-	// Set the base image where we will pack the unikernel
-	if instr.Base == "scratch" {
-		base = llb.Scratch()
-	} else if strings.HasPrefix(instr.Base, unikraftHub) {
-		// Define the platform to qemu/amd64 so we cna pull unikraft images
-		platform := ocispecs.Platform{
-			OS:           "qemu",
-			Architecture: "amd64",
-		}
-		base = llb.Image(instr.Base, llb.Platform(platform),)
-	} else {
-		base = llb.Image(instr.Base)
 	}
 
 	// Perform any copies inside the image
