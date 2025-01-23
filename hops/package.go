@@ -98,7 +98,7 @@ func (h Hops) ToPack(buildContext string) (*PackInstructions, error) {
 		aCopy.DstPath = DefaultKernelPath
 		instr.Copies = append(instr.Copies, aCopy)
 	} else {
-		instr.Base = getBase(h.Kernel.From)
+		instr.Base = getBase(h.Kernel.From, h.Platform.Monitor)
 		instr.Annots["com.urunc.unikernel.binary"] = h.Kernel.Path
 	}
 
@@ -181,7 +181,7 @@ func (h Hops) ToPack(buildContext string) (*PackInstructions, error) {
 					instr.Copies = append(instr.Copies, kernelCopy)
 					instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
 				}
-				instr.Base = getBase(h.Rootfs.From)
+				instr.Base = getBase(h.Rootfs.From, "")
 			}
 		}
 
@@ -335,7 +335,7 @@ func ParseDockerFile(fileBytes []byte, buildContext string) (*PackInstructions, 
 	instr := new(PackInstructions)
 	instr.Annots = make(map[string]string)
 	instr.Base = llb.Scratch()
-	setStage := false
+	BaseString := ""
 
 	r := bytes.NewReader(fileBytes)
 
@@ -354,11 +354,10 @@ func ParseDockerFile(fileBytes []byte, buildContext string) (*PackInstructions, 
 		switch c := cmd.(type) {
 		case *instructions.Stage:
 			// Handle FROM
-			if setStage {
+			if BaseString != "" {
 				return nil, fmt.Errorf("Multi-stage builds are not supported")
 			}
-			setStage = true
-			instr.Base = getBase(c.BaseName)
+			BaseString = c.BaseName
 		case *instructions.CopyCommand:
 			// Handle COPY
 			var aCopy PackCopies
@@ -381,6 +380,7 @@ func ParseDockerFile(fileBytes []byte, buildContext string) (*PackInstructions, 
 		}
 
 	}
+	instr.Base = getBase(BaseString, instr.Annots["com.urunc.unikernel.hypervisor"])
 
 	return instr, nil
 }
@@ -451,14 +451,17 @@ func copyIn(to llb.State, from PackCopies) llb.State {
 }
 
 // Set the base image where we will pack the unikernel
-func getBase(inputBase string) llb.State {
+func getBase(inputBase string, monitor string) llb.State {
+	if monitor == "firecracker" {
+		monitor = "fc"
+	}
 	if inputBase == "scratch" {
 		return llb.Scratch()
 	}
 	if strings.HasPrefix(inputBase, unikraftHub) {
 		// Define the platform to qemu/amd64 so we can pull unikraft images
 		platform := ocispecs.Platform{
-			OS:           "qemu",
+			OS:           monitor,
 			Architecture: runtime.GOARCH,
 		}
 		return llb.Image(inputBase, llb.Platform(platform))
