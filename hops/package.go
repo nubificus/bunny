@@ -380,25 +380,24 @@ func ParseDockerFile(fileBytes []byte, buildContext string) (*PackInstructions, 
 func ParseFile(fileBytes []byte, buildContext string) (*PackInstructions, error) {
 	lines := bytes.Split(fileBytes, []byte("\n"))
 
-	// First line is always the #syntax
-	if len(lines) <= 1 {
-		return nil, fmt.Errorf("Invalid format of file")
-	}
-
-	// Simply check if the first non-empty line starts with FROM
-	// If it starts we assume a Dockerfile
-	// otherwise a bunnyfile
-	for _, line := range lines[1:] {
+	// Simply check if the first non-empty/non-comment line starts With
+	// FROM or version. If it starts with FROM, we assume a Dockerfile-like
+	// syntax. Otherwise, we assume a bunnyfile syntax
+	for _, line := range lines {
 		if len(bytes.TrimSpace(line)) > 0 {
-			if strings.HasPrefix(string(line), "FROM") {
+			if strings.HasPrefix(string(line), "#") {
+				continue
+			} else if strings.HasPrefix(string(line), "FROM") {
 				return ParseDockerFile(fileBytes, buildContext)
+			} else if strings.HasPrefix(string(line), "version") {
+				return ParseBunnyFile(fileBytes, buildContext)
 			} else {
 				break
 			}
 		}
 	}
 
-	return ParseBunnyFile(fileBytes, buildContext)
+	return nil, fmt.Errorf("Invalid format of file")
 }
 
 // Create a LLB State that simply copies all the files in the include list inside
