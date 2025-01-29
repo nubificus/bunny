@@ -173,7 +173,8 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 						instr.Copies = append(instr.Copies, kernelCopy)
 						instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
 					}
-					instr.Base = FilesLLB(hops.Rootfs, buildContext)
+					local := llb.Local(buildContext)
+					instr.Base = FilesLLB(hops.Rootfs.Includes, local, instr.Base)
 				}
 			}
 		} else {
@@ -448,25 +449,22 @@ func ParseFile(fileBytes []byte, buildContext string) (*PackInstructions, error)
 
 // Create a LLB State that simply copies all the files in the include list inside
 // an empty image
-func FilesLLB(contents HopsRootfs, buildContext string) llb.State {
-	base := llb.Scratch()
-
-	local := llb.Local(buildContext, llb.WithCustomName("Internal:Copy local files"))
-	for _, file := range contents.Includes {
+func FilesLLB(fileList []string, fromState llb.State, toState llb.State) llb.State {
+	for _, file := range fileList {
 		var aCopy PackCopies
 
 		parts := strings.Split(file, ":")
-		aCopy.SrcState = local
+		aCopy.SrcState = fromState
 		aCopy.SrcPath = parts[0]
 		// If user did not define destination path, use the same as the source
 		aCopy.DstPath = parts[0]
 		if len(parts) != 1 && len(parts[1]) > 0 {
 			aCopy.DstPath = parts[1]
 		}
-		base = copyIn(base, aCopy)
+		toState = copyIn(toState, aCopy)
 	}
 
-	return base
+	return toState
 }
 
 // Create a LLB State that builds a Unikraft WAMR unikernel
