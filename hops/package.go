@@ -108,13 +108,20 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 		// we got inside the if clauses and really set the SrcState and SrcPath
 		aCopy.SrcPath = ""
 
-		if hops.Rootfs.From == "local" {
-			aCopy.SrcState = llb.Local(buildContext)
-			aCopy.SrcPath = hops.Rootfs.Path
-		} else if hops.Rootfs.From == "scratch" {
-			if len(hops.Rootfs.Includes) > 0 {
-				aCopy.SrcState = initrdLLB(hops.Rootfs, buildContext)
-				aCopy.SrcPath = DefaultRootfsPath
+		if hops.Rootfs.From != "" {
+			if hops.Rootfs.From == "local" {
+				aCopy.SrcState = llb.Local(buildContext)
+				aCopy.SrcPath = hops.Rootfs.Path
+			} else if hops.Rootfs.From == "scratch" {
+				if len(hops.Rootfs.Includes) > 0 {
+					local := llb.Local(buildContext)
+					contentState := FilesLLB(hops.Rootfs.Includes, local, llb.Scratch())
+					aCopy.SrcState = initrdLLB(contentState)
+					aCopy.SrcPath = DefaultRootfsPath
+				}
+			} else {
+				aCopy.SrcState = llb.Image(hops.Rootfs.From)
+				aCopy.SrcPath = hops.Rootfs.Path
 			}
 		} else {
 			aCopy.SrcState = llb.Image(hops.Rootfs.From)
@@ -139,7 +146,9 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 		} else if (hops.Rootfs.From == "scratch" || hops.Rootfs.From == "") {
 			if len(hops.Rootfs.Includes) > 0 {
 				if hops.Rootfs.Type == "initrd" {
-					aCopy.SrcState = initrdLLB(hops.Rootfs, buildContext)
+					local := llb.Local(buildContext)
+					contentState := FilesLLB(hops.Rootfs.Includes, local, llb.Scratch())
+					aCopy.SrcState = initrdLLB(contentState)
 					aCopy.SrcPath = DefaultRootfsPath
 				} else if hops.Rootfs.Type == "raw" {
 					instr.Annots["com.urunc.unikernel.useDMBlock"] = "true"
@@ -424,30 +433,13 @@ func FilesLLB(fileList []string, fromState llb.State, toState llb.State) llb.Sta
 
 // Create a LLB State that creates an initrd based on the data from the HopsRootfs
 // argument
-func initrdLLB(initrdContent HopsRootfs, buildContext string) llb.State {
+func initrdLLB(content llb.State) llb.State {
 	base := llb.Image(DefaultBsdcpioImage, llb.WithCustomName("Internal:Create initrd"))
 
-	base = base.File(llb.Mkdir(DefaultInitrdContent, 0755))
 	base = base.File(llb.Mkdir("/.boot/", 0755))
 	base = base.File(llb.Mkdir("/tmp", 0755))
-	local := llb.Local(buildContext)
-	for _, file := range initrdContent.Includes {
-		var aCopy PackCopies
-
-		parts := strings.Split(file, ":")
-		aCopy.SrcState = local
-		aCopy.SrcPath = parts[0]
-		// If user did not define destination path, use the same as the source
-		aCopy.DstPath = DefaultInitrdContent + parts[0]
-		if len(parts) != 1 && len(parts[1]) > 0 {
-			aCopy.DstPath = DefaultInitrdContent + parts[1]
-		}
-		base = copyIn(base, aCopy)
-	}
-
 	base = base.Dir(DefaultInitrdContent).
-		Run(llb.Shlexf("sh -c \"find . -depth -print | tac | bsdcpio -o --format newc > %s\"", DefaultRootfsPath)).Run(llb.Shlex("find /.boot/")).Root()
-
+		Run(llb.Shlexf("sh -c \"find . -depth -print | tac | bsdcpio -o --format newc > %s && find /.boot && find\"", DefaultRootfsPath), llb.AddMount(DefaultInitrdContent, content),).Root()
 	return base
 }
 
