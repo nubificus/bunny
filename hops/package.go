@@ -60,11 +60,19 @@ type HopsKernel struct {
 	Path   string `yaml:"path"`
 }
 
+type HopsApp struct {
+	Source   string `yaml:"source"`
+	Path     string `yaml:"path"`
+	Language string `yaml:"language"`
+	Target   string `yaml:"target"`
+}
+
 type Hops struct {
 	Version  string       `yaml:"version"`
 	Platform HopsPlatform `yaml:"platforms"`
 	Rootfs   HopsRootfs   `yaml:"rootfs"`
 	Kernel   HopsKernel   `yaml:"kernel"`
+	App      HopsApp      `yaml:"app"`
 	Cmd      string       `yaml:"cmdline"`
 }
 
@@ -87,19 +95,21 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 	instr.Annots = make(map[string]string)
 	instr.Annots["com.urunc.unikernel.useDMBlock"] = "false"
 
-	if hops.Kernel.From == "local" {
-		var aCopy PackCopies
+	if hops.Kernel.From != "" {
+		if hops.Kernel.From == "local" {
+			var aCopy PackCopies
 
-		instr.Base = llb.Scratch()
-		instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+			instr.Base = llb.Scratch()
+			instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
 
-		aCopy.SrcState = llb.Local(buildContext)
-		aCopy.SrcPath = hops.Kernel.Path
-		aCopy.DstPath = DefaultKernelPath
-		instr.Copies = append(instr.Copies, aCopy)
-	} else {
-		instr.Base = getBase(hops.Kernel.From)
-		instr.Annots["com.urunc.unikernel.binary"] = hops.Kernel.Path
+			aCopy.SrcState = llb.Local(buildContext)
+			aCopy.SrcPath = hops.Kernel.Path
+			aCopy.DstPath = DefaultKernelPath
+			instr.Copies = append(instr.Copies, aCopy)
+		} else {
+			instr.Base = getBase(hops.Kernel.From)
+			instr.Annots["com.urunc.unikernel.binary"] = hops.Kernel.Path
+		}
 	}
 
 	if hops.Platform.Framework == "unikraft" {
@@ -108,17 +118,19 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 		// we got inside the if clauses and really set the SrcState and SrcPath
 		aCopy.SrcPath = ""
 
-		if hops.Rootfs.From == "local" {
-			aCopy.SrcState = llb.Local(buildContext)
-			aCopy.SrcPath = hops.Rootfs.Path
-		} else if hops.Rootfs.From == "scratch" {
-			if len(hops.Rootfs.Includes) > 0 {
-				aCopy.SrcState = initrdLLB(hops.Rootfs, buildContext)
-				aCopy.SrcPath = DefaultRootfsPath
+		if hops.Rootfs.From != "" {
+			if hops.Rootfs.From == "local" {
+				aCopy.SrcState = llb.Local(buildContext)
+				aCopy.SrcPath = hops.Rootfs.Path
+			} else if hops.Rootfs.From == "scratch" {
+				if len(hops.Rootfs.Includes) > 0 {
+					aCopy.SrcState = initrdLLB(hops.Rootfs, buildContext)
+					aCopy.SrcPath = DefaultRootfsPath
+				}
+			} else {
+				aCopy.SrcState = llb.Image(hops.Rootfs.From)
+				aCopy.SrcPath = hops.Rootfs.Path
 			}
-		} else {
-			aCopy.SrcState = llb.Image(hops.Rootfs.From)
-			aCopy.SrcPath = hops.Rootfs.Path
 		}
 
 		// Add the Copy onli if we got in one of the above if claueses.
@@ -277,6 +289,21 @@ func ValidateKernel(kernel HopsKernel) error {
 	return nil
 }
 
+// ValidateApp checks if user input meets all conditions regarding the app
+// field. The conditions are:
+// 1) source can not be empty or not set
+// 2) language can not be empty or not set
+func ValidateApp(app HopsApp) error {
+	if app.Source == "" {
+		return fmt.Errorf("The source field of app is necessary")
+	}
+	if app.Language == "" {
+		return fmt.Errorf("The language field of app is necessary")
+	}
+
+	return nil
+}
+
 // ParseBunnyFile reads a yaml file which contains instructions for
 // bunny.
 func ParseBunnyFile(fileBytes []byte, buildContext string) (*PackInstructions, error) {
@@ -297,9 +324,18 @@ func ParseBunnyFile(fileBytes []byte, buildContext string) (*PackInstructions, e
 		return nil, err
 	}
 
-	err = ValidateKernel(bunnyHops.Kernel)
-	if err != nil {
-		return nil, err
+	if bunnyHops.App.Source == "" {
+		err = ValidateKernel(bunnyHops.Kernel)
+		if err != nil {
+			return nil, fmt.Errorf("If app field is not set, then kernel field should be set: ", err)
+		}
+	}
+
+	if bunnyHops.Kernel.From == "" {
+		err = ValidateApp(bunnyHops.App)
+		if err != nil {
+			return nil, fmt.Errorf("If kernel field is not set, then app field should be set: ", err)
+		}
 	}
 
 	// Set default value of from to scratch if include is specified.
