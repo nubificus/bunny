@@ -31,14 +31,16 @@ import (
 )
 
 const (
-	DefaultBsdcpioImage  string = "harbor.nbfc.io/nubificus/bunny/libarchive:latest"
-	DefaultInitrdContent string = "/initrd/"
-	DefaultKernelPath    string = "/.boot/kernel"
-	DefaultRootfsPath    string = "/.boot/rootfs"
-	unikraftKernelPath   string = "/unikraft/bin/kernel"
-	unikraftHub          string = "unikraft.org"
-	uruncJSONPath        string = "/urunc.json"
-	bunnyFileVersion     string = "0.1"
+	DefaultUnikraftBaseImage  string = "harbor.nbfc.io/nubificus/bunny/unikraft/base:latest"
+	DefaultBsdcpioImage       string = "harbor.nbfc.io/nubificus/bunny/libarchive:latest"
+	DefaultBuildDir           string = "/build/"
+	DefaultInitrdContent      string = "/initrd/"
+	DefaultKernelPath         string = "/.boot/kernel"
+	DefaultRootfsPath         string = "/.boot/rootfs"
+	unikraftKernelPath        string = "/unikraft/bin/kernel"
+	unikraftHub               string = "unikraft.org"
+	uruncJSONPath             string = "/urunc.json"
+	bunnyFileVersion          string = "0.1"
 )
 
 type HopsPlatform struct {
@@ -114,10 +116,18 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 
 	if hops.Platform.Framework == "unikraft" {
 		var aCopy PackCopies
+
+		if hops.App.Target == "wasm" {
+			aCopy.SrcState = wamrUnikraftLLB(hops.App, hops.Platform.Version, buildContext)
+			aCopy.SrcPath = DefaultKernelPath
+			aCopy.DstPath = DefaultKernelPath
+			instr.Copies = append(instr.Copies, aCopy)
+			instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+		}
+
 		// Make sure SrcPath is set to empty string, so we can check if
 		// we got inside the if clauses and really set the SrcState and SrcPath
 		aCopy.SrcPath = ""
-
 		if hops.Rootfs.From != "" {
 			if hops.Rootfs.From == "local" {
 				aCopy.SrcState = llb.Local(buildContext)
@@ -455,6 +465,39 @@ func FilesLLB(contents HopsRootfs, buildContext string) llb.State {
 		}
 		base = copyIn(base, aCopy)
 	}
+
+	return base
+}
+
+// Create a LLB State that builds a Unikraft WAMR unikernel
+func wamrUnikraftLLB(appInfo HopsApp, version string, buildContext string) llb.State {
+
+	if version == "" {
+		version = "0.17.0"
+	}
+
+	base := llb.Image(DefaultUnikraftBaseImage, llb.WithCustomName("Internal:Build Unikraft unikernel"))
+
+	base = base.File(llb.Mkdir(DefaultBuildDir, 0755))
+	base = base.File(llb.Mkdir("/.boot/", 0755))
+	base = base.Dir(DefaultBuildDir).
+		Run(llb.Shlex("git clone https://github.com/unikraft/app-wamr.git")).Root()
+	base = base.Dir(DefaultBuildDir + "app-wamr").AddEnv("PWD", DefaultBuildDir + "app-wamr").
+		//Run(llb.Shlex("git clone https://github.com/unikraft/app-wamr.git")).
+		//Run(llb.Shlex("cd app-wamr")).
+		Run(llb.Shlex("mkdir -p workdir/libs")).
+		Run(llb.Shlexf("git clone https://github.com/unikraft/unikraft.git -b RELEASE-%s workdir/unikraft", version)).
+		Run(llb.Shlexf("git clone https://github.com/unikraft/lib-lwip.git -b RELEASE-%s workdir/libs/lwip", version)).
+		Run(llb.Shlexf("git clone https://github.com/unikraft/lib-musl.git -b RELEASE-%s workdir/libs/musl", version)).
+		Run(llb.Shlex("git clone https://github.com/unikraft/lib-wamr.git workdir/libs/wamr")).
+		Run(llb.Shlex("cp defconfigs/qemu-x86_64-initrd .config")).
+		Run(llb.Shlex("ls workdir")).
+		Run(llb.Shlex("ls workdir")).
+		Run(llb.Shlex("ls workdir")).
+		Run(llb.Shlex("make olddefconfig")).
+		Run(llb.Shlex("make")).
+		Run(llb.Shlexf("cp workdir/build/wamr_qemu-x86_64 %s", DefaultKernelPath)).
+		Root()
 
 	return base
 }
