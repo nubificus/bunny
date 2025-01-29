@@ -33,6 +33,8 @@ import (
 const (
 	DefaultUnikraftBaseImage  string = "harbor.nbfc.io/nubificus/bunny/unikraft/base:latest"
 	DefaultBsdcpioImage       string = "harbor.nbfc.io/nubificus/bunny/libarchive:latest"
+	DefaultRustBuildImage     string = "harbor.nbfc.io/nubificus/bunny/rust/wasm:latest"
+	DefaultCBuildImage        string = "harbor.nbfc.io/nubificus/bunny/c/wasm:latest"
 	DefaultBuildDir           string = "/build/"
 	DefaultInitrdContent      string = "/initrd/"
 	DefaultKernelPath         string = "/.boot/kernel"
@@ -63,6 +65,7 @@ type HopsKernel struct {
 }
 
 type HopsApp struct {
+	Name     string `yaml:"name"`
 	Source   string `yaml:"source"`
 	Path     string `yaml:"path"`
 	Language string `yaml:"language"`
@@ -116,6 +119,7 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 
 	if hops.Platform.Framework == "unikraft" {
 		var aCopy PackCopies
+		builtApp := llb.Scratch()
 
 		if hops.App.Target == "wasm" {
 			aCopy.SrcState = wamrUnikraftLLB(hops.App, hops.Platform.Version, buildContext)
@@ -123,6 +127,12 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 			aCopy.DstPath = DefaultKernelPath
 			instr.Copies = append(instr.Copies, aCopy)
 			instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+
+			if hops.App.Language != "c" {
+				return nil, fmt.Errorf("Currently only C is supported for WASM")
+			} else {
+				builtApp = buildCWasm(hops.App, buildContext)
+			}
 		}
 
 		// Make sure SrcPath is set to empty string, so we can check if
@@ -135,13 +145,18 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 			} else if hops.Rootfs.From == "scratch" {
 				if len(hops.Rootfs.Includes) > 0 {
 					local := llb.Local(buildContext)
-					contentState := FilesLLB(hops.Rootfs.Includes, local, llb.Scratch())
+					contentState := FilesLLB(hops.Rootfs.Includes, local, builtApp)
 					aCopy.SrcState = initrdLLB(contentState)
 					aCopy.SrcPath = DefaultRootfsPath
 				}
 			} else {
 				aCopy.SrcState = llb.Image(hops.Rootfs.From)
 				aCopy.SrcPath = hops.Rootfs.Path
+			}
+		} else {
+			if hops.App.Target == "wasm" {
+				aCopy.SrcState = initrdLLB(builtApp)
+				aCopy.SrcPath = DefaultRootfsPath
 			}
 		}
 
@@ -309,8 +324,8 @@ func ValidateKernel(kernel HopsKernel) error {
 // 1) source can not be empty or not set
 // 2) language can not be empty or not set
 func ValidateApp(app HopsApp) error {
-	if app.Source == "" {
-		return fmt.Errorf("The source field of app is necessary")
+	if app.Source != "local" {
+		return fmt.Errorf("Currently only local is a valid value for app's source")
 	}
 	if app.Language == "" {
 		return fmt.Errorf("The language field of app is necessary")
@@ -502,6 +517,35 @@ func wamrUnikraftLLB(appInfo HopsApp, version string, buildContext string) llb.S
 		Root()
 
 	return base
+}
+
+// Create a LLB State that builds a C program targetting wasm
+func buildCWasm(appInfo HopsApp, buildContext string) llb.State {
+	base := llb.Image(DefaultCBuildImage, llb.WithCustomName("Internal:Build C in WASM"))
+
+	local := llb.Local(buildContext)
+	base = base.File(llb.Mkdir("/target_dir", 0755))
+	base = base.Dir(DefaultBuildDir).
+		Run(llb.Shlexf("clang-8 --target=wasm32 -O3 -Wl,--initial-memory=131072,--allow-undefined,--export=main,--no-threads,--strip-all,--no-entry -nostdlib -o /target_dir/%s.wasm %s.c", appInfo.Name, appInfo.Name), llb.AddMount(DefaultBuildDir, local),).Root()
+	binCopy := []string{"/target_dir/"+appInfo.Name+".wasm:/"+appInfo.Name+".wasm"}
+	return FilesLLB(binCopy, base, llb.Scratch())
+}
+
+// Create a LLB State that builds a Rust program targetting wasm
+func buildRustWasm(appInfo HopsApp, buildContext string) llb.State {
+	base := llb.Image(DefaultRustBuildImage, llb.WithCustomName("Internal:Build Rust in WASM"))
+
+	local := llb.Local(buildContext)
+	base = base.File(llb.Mkdir("/target_dir", 0755))
+	base = base.Dir(DefaultBuildDir).
+		AddEnv("PATH", "/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin").
+		AddEnv("RUSTUP_HOME", "/usr/local/rustup").
+		AddEnv("CARGO_HOME", "/usr/local/cargo").
+		AddEnv("RUST_VERSION", "1.84.0").
+		Run(llb.Shlex("find .")).
+		Run(llb.Shlex("cargo build --target wasm32-unknown-emscripten  --target-dir=/target_dir"), llb.AddMount(DefaultBuildDir, local),).Root()
+	binCopy := []string{"/target_dir/wasm32-unknown-emscripten/debug/"+appInfo.Name+".wasm:/"+appInfo.Name+".wasm"}
+	return FilesLLB(binCopy, base, llb.Scratch())
 }
 
 // Create a LLB State that creates an initrd based on the data from the HopsRootfs
