@@ -1,4 +1,4 @@
-# Packaging a unikraft unikernel with `bunny`
+# Packaging a Unikraft unikernel with `bunny`
 
 For this example, we will use an existing [Unikraft](unikraft.org) Unikernel
 image from [Unikraft's catalog](https://github.com/unikraft/catalog), we can
