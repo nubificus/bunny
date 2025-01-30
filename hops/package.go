@@ -32,6 +32,7 @@ import (
 
 const (
 	DefaultUnikraftBaseImage  string = "harbor.nbfc.io/nubificus/bunny/unikraft/base:latest"
+	DefaultMewzBaseImage      string = "harbor.nbfc.io/nubificus/bunny/mewz/base:latest"
 	DefaultBsdcpioImage       string = "harbor.nbfc.io/nubificus/bunny/libarchive:latest"
 	DefaultRustBuildImage     string = "harbor.nbfc.io/nubificus/bunny/rust/wasm:latest"
 	DefaultCBuildImage        string = "harbor.nbfc.io/nubificus/bunny/c/wasm:latest"
@@ -165,6 +166,21 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 			aCopy.DstPath = DefaultRootfsPath
 			instr.Copies = append(instr.Copies, aCopy)
 			instr.Annots["com.urunc.unikernel.initrd"] = DefaultRootfsPath
+		}
+	} else if hops.Platform.Framework == "mewz" {
+		var aCopy PackCopies
+
+		if hops.App.Target == "wasm" {
+			if hops.App.Language != "rust" {
+				return nil, fmt.Errorf("Currently only Rust is supported for Mewz")
+			} else {
+				builtApp := buildRustWasm(hops.App, buildContext)
+				aCopy.SrcState = mewzLLB(hops.App, builtApp)
+				aCopy.SrcPath = DefaultKernelPath
+				aCopy.DstPath = DefaultKernelPath
+				instr.Copies = append(instr.Copies, aCopy)
+				instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+			}
 		}
 	} else {
 		var aCopy PackCopies
@@ -486,6 +502,23 @@ func FilesLLB(fileList []string, fromState llb.State, toState llb.State) llb.Sta
 	return toState
 }
 
+// Create a LLB State that builds a Mewz WAMR unikernel
+func mewzLLB(appInfo HopsApp, wasmAppState llb.State) llb.State {
+	base := llb.Image(DefaultMewzBaseImage, llb.WithCustomName("Internal:Build Mewz unikernel"))
+
+	base = base.File(llb.Mkdir("/.boot/", 0755))
+	base = base.Dir("/mewz").AddEnv("PATH", "/usr/bin/zig:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin").
+		Run(llb.Shlexf("wasker %s/%s.wasm", DefaultBuildDir, appInfo.Name), llb.AddMount(DefaultBuildDir, wasmAppState),).
+		Run(llb.Shlex("zig build -Dapp-obj=./wasm.o")).
+		Run(llb.Shlex("zig build -Dapp-obj=./wasm.o")).
+		//Run(llb.Shlex("bash -c \"printf \"\\x03\\x00\" | dd of=zig-out/bin/mewz.elf  bs=1 seek=18 count=2 conv=notrunc\"")).
+		Run(llb.Shlex("bash trela.sh")).
+		Run(llb.Shlexf("cp zig-out/bin/mewz.elf %s", DefaultKernelPath)).
+		Root()
+
+	return base
+}
+
 // Create a LLB State that builds a Unikraft WAMR unikernel
 func wamrUnikraftLLB(appInfo HopsApp, version string, buildContext string) llb.State {
 
@@ -543,8 +576,8 @@ func buildRustWasm(appInfo HopsApp, buildContext string) llb.State {
 		AddEnv("CARGO_HOME", "/usr/local/cargo").
 		AddEnv("RUST_VERSION", "1.84.0").
 		Run(llb.Shlex("find .")).
-		Run(llb.Shlex("cargo build --target wasm32-unknown-emscripten  --target-dir=/target_dir"), llb.AddMount(DefaultBuildDir, local),).Root()
-	binCopy := []string{"/target_dir/wasm32-unknown-emscripten/debug/"+appInfo.Name+".wasm:/"+appInfo.Name+".wasm"}
+		Run(llb.Shlex("cargo build --target wasm32-wasip1  --target-dir=/target_dir"), llb.AddMount(DefaultBuildDir, local),).Root()
+	binCopy := []string{"/target_dir/wasm32-wasip1/debug/"+appInfo.Name+".wasm:/"+appInfo.Name+".wasm"}
 	return FilesLLB(binCopy, base, llb.Scratch())
 }
 
