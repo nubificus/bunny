@@ -11,3 +11,5 @@ The list of existing examples;
   unikernel](https://github.com/nubificus/bunny/tree/main/examples/Nginx_Unikraft.md).
 - [Packaging a C HTTP Web Server as a Unikraft
   unikernel](https://github.com/nubificus/bunny/tree/main/examples/CHTTP_Unikraft.md).
+- [Packaging a Redis Rumprun
+  unikernel](https://github.com/nubificus/bunny/tree/main/examples/Redis_Rumprun.md).
