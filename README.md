@@ -111,7 +111,8 @@ platforms:                                      # [3] The target unikernel platf
 rootfs:                                         # [4] (Optional) Specifies the rootfs of the unikernel.
   from: local                                   # [4a] (Optional) The source of the initrd.
   path: initrd                                  # [4b] (Required if from is not scratch) The path in the source, where a prebuilt rootfs file resides.
-  include:                                      # [4c] (Optional) A list of files to include in the rootfs
+  type: initrd                                  # [4c] The type of rootfs, in case the unikernel framework supports more than one (e.g. initrd, raw, block)
+  include:                                      # [4d] (Optional) A list of files to include in the rootfs
     - src:dst
 
 kernel:                                         # [5] Specify a prebuilt kernel to use
@@ -148,7 +149,16 @@ The fields of `bunnyfile` in more details:
         required, if `from` has a value other than `scratch`..In the
         case where the `from` field has the value `local`, then the `path` should
         be relative to the build context.
-    4c. A list of files to include in the rootfs. This field takes effect only
+    4c. The type of rootfs. In most cases the unikernel framework supports only
+        one type of a rootfs (e.g. initramfs). However, there are frameworks where
+        the rootfs can have various forms, such as initrd, block device and
+        shared-fs. For the time being, bunny can construct only two types of
+        rootfs; initrd and raw. In the case of raw all the files are simply copied
+        inside the container rootfs and we can use shared-fs or transform the
+        container rootfs to a block (this can easily happen using devmapper as a
+        snapshotter). This field is optional and `bunny` will create the default type
+        of rootfs for the respective unikernel framework.
+    4d. A list of files to include in the rootfs. This field takes effect only
         when the `from` field has the value `scratch`. The files can be defined
         in the following format: `- <path_in_the_build_context>:<path_inside_rootfs>`. The `<path_inside_rootfs>` can be omitted and then the same path as the one in `<path_in_the_build_context>` will be used.
 5. Information regarding an existing prebuilt kernel to use. For the time
