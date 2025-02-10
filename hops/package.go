@@ -15,19 +15,19 @@
 package hops
 
 import (
+	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
-	"context"
 	"fmt"
-	"bytes"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/hashicorp/go-version"
 	"github.com/moby/buildkit/client/llb"
-	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/moby/buildkit/frontend/dockerfile/instructions"
 	"github.com/moby/buildkit/frontend/dockerfile/parser"
-	"github.com/hashicorp/go-version"
+	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -41,37 +41,37 @@ const (
 	bunnyFileVersion     string = "0.1"
 )
 
-type HopsPlatform struct {
+type Platform struct {
 	Framework string `yaml:"framework"`
 	Version   string `yaml:"version"`
 	Monitor   string `yaml:"monitor"`
 	Arch      string `yaml:"arch"`
 }
 
-type HopsRootfs struct {
+type Rootfs struct {
 	From     string   `yaml:"from"`
 	Path     string   `yaml:"path"`
 	Type     string   `yaml:"type"`
 	Includes []string `yaml:"include"`
 }
 
-type HopsKernel struct {
-	From   string `yaml:"from"`
-	Path   string `yaml:"path"`
+type Kernel struct {
+	From string `yaml:"from"`
+	Path string `yaml:"path"`
 }
 
 type Hops struct {
-	Version  string       `yaml:"version"`
-	Platform HopsPlatform `yaml:"platforms"`
-	Rootfs   HopsRootfs   `yaml:"rootfs"`
-	Kernel   HopsKernel   `yaml:"kernel"`
-	Cmd      string       `yaml:"cmdline"`
+	Version  string   `yaml:"version"`
+	Platform Platform `yaml:"platforms"`
+	Rootfs   Rootfs   `yaml:"rootfs"`
+	Kernel   Kernel   `yaml:"kernel"`
+	Cmd      string   `yaml:"cmdline"`
 }
 
-type PackCopies struct {    // A struct to represent a copy operation in the final image
-	SrcState llb.State  // The state where the file resides
-	SrcPath  string     // The source path inside the SrcState where the file resides
-	DstPath  string     // The destination path to copy the file inside the final image
+type PackCopies struct { // A struct to represent a copy operation in the final image
+	SrcState llb.State // The state where the file resides
+	SrcPath  string    // The source path inside the SrcState where the file resides
+	DstPath  string    // The destination path to copy the file inside the final image
 }
 
 type PackInstructions struct {
@@ -80,52 +80,52 @@ type PackInstructions struct {
 	Annots map[string]string // Annotations
 }
 
-// HopsToPack converts Hops into PackInstructions
-func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
-	var instr *PackInstructions
-	instr = new(PackInstructions)
+// ToPack converts Hops into PackInstructions
+func (h Hops) ToPack(buildContext string) (*PackInstructions, error) {
+	instr := new(PackInstructions)
 	instr.Annots = make(map[string]string)
 	instr.Annots["com.urunc.unikernel.useDMBlock"] = "false"
 
-	if hops.Kernel.From == "local" {
+	if h.Kernel.From == "local" {
 		var aCopy PackCopies
 
 		instr.Base = llb.Scratch()
 		instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
 
 		aCopy.SrcState = llb.Local(buildContext)
-		aCopy.SrcPath = hops.Kernel.Path
+		aCopy.SrcPath = h.Kernel.Path
 		aCopy.DstPath = DefaultKernelPath
 		instr.Copies = append(instr.Copies, aCopy)
 	} else {
-		instr.Base = getBase(hops.Kernel.From)
-		instr.Annots["com.urunc.unikernel.binary"] = hops.Kernel.Path
+		instr.Base = getBase(h.Kernel.From)
+		instr.Annots["com.urunc.unikernel.binary"] = h.Kernel.Path
 	}
 
-	if hops.Platform.Framework == "unikraft" {
+	if h.Platform.Framework == "unikraft" {
 		var aCopy PackCopies
 		// Make sure SrcPath is set to empty string, so we can check if
 		// we got inside the if clauses and really set the SrcState and SrcPath
 		aCopy.SrcPath = ""
 
-		if hops.Rootfs.From != "" {
-			if hops.Rootfs.From == "local" {
+		if h.Rootfs.From != "" {
+			switch h.Rootfs.From {
+			case "local":
 				aCopy.SrcState = llb.Local(buildContext)
-				aCopy.SrcPath = hops.Rootfs.Path
-			} else if hops.Rootfs.From == "scratch" {
-				if len(hops.Rootfs.Includes) > 0 {
+				aCopy.SrcPath = h.Rootfs.Path
+			case "scratch":
+				if len(h.Rootfs.Includes) > 0 {
 					local := llb.Local(buildContext)
-					contentState := FilesLLB(hops.Rootfs.Includes, local, llb.Scratch())
+					contentState := FilesLLB(h.Rootfs.Includes, local, llb.Scratch())
 					aCopy.SrcState = initrdLLB(contentState)
 					aCopy.SrcPath = DefaultRootfsPath
 				}
-			} else {
-				aCopy.SrcState = llb.Image(hops.Rootfs.From)
-				aCopy.SrcPath = hops.Rootfs.Path
+			default:
+				aCopy.SrcState = llb.Image(h.Rootfs.From)
+				aCopy.SrcPath = h.Rootfs.Path
 			}
 		} else {
-			aCopy.SrcState = llb.Image(hops.Rootfs.From)
-			aCopy.SrcPath = hops.Rootfs.Path
+			aCopy.SrcState = llb.Image(h.Rootfs.From)
+			aCopy.SrcPath = h.Rootfs.Path
 		}
 
 		// Add the Copy onli if we got in one of the above if claueses.
@@ -139,48 +139,48 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 		// Make sure SrcPath is set to empty string, so we can check if
 		// we got inside the if clauses and really set the SrcState and SrcPath
 		aCopy.SrcPath = ""
-
-		if hops.Rootfs.From == "local" {
+		switch h.Rootfs.From {
+		case "local":
 			aCopy.SrcState = llb.Local(buildContext)
-			aCopy.SrcPath = hops.Rootfs.Path
-		} else if (hops.Rootfs.From == "scratch" || hops.Rootfs.From == "") {
-			if len(hops.Rootfs.Includes) > 0 {
-				if hops.Rootfs.Type == "initrd" {
+			aCopy.SrcPath = h.Rootfs.Path
+		case "scratch", "":
+			if len(h.Rootfs.Includes) > 0 {
+				if h.Rootfs.Type == "initrd" {
 					local := llb.Local(buildContext)
-					contentState := FilesLLB(hops.Rootfs.Includes, local, llb.Scratch())
+					contentState := FilesLLB(h.Rootfs.Includes, local, llb.Scratch())
 					aCopy.SrcState = initrdLLB(contentState)
 					aCopy.SrcPath = DefaultRootfsPath
-				} else if hops.Rootfs.Type == "raw" {
+				} else if h.Rootfs.Type == "raw" {
 					instr.Annots["com.urunc.unikernel.useDMBlock"] = "true"
-					if hops.Kernel.From != "local" {
+					if h.Kernel.From != "local" {
 						var kernelCopy PackCopies
 						kernelCopy.SrcState = instr.Base
-						kernelCopy.SrcPath = hops.Kernel.Path
+						kernelCopy.SrcPath = h.Kernel.Path
 						kernelCopy.DstPath = DefaultKernelPath
 						instr.Copies = append(instr.Copies, kernelCopy)
 						instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
 					}
 					local := llb.Local(buildContext)
-					instr.Base = FilesLLB(hops.Rootfs.Includes, local, instr.Base)
+					instr.Base = FilesLLB(h.Rootfs.Includes, local, instr.Base)
 				}
 			}
-		} else {
-			if hops.Rootfs.Path != "" {
-				aCopy.SrcState = llb.Image(hops.Rootfs.From)
-				aCopy.SrcPath = hops.Rootfs.Path
+		default:
+			if h.Rootfs.Path != "" {
+				aCopy.SrcState = llb.Image(h.Rootfs.From)
+				aCopy.SrcPath = h.Rootfs.Path
 			} else {
-				if hops.Rootfs.Type == "raw" {
+				if h.Rootfs.Type == "raw" {
 					instr.Annots["com.urunc.unikernel.useDMBlock"] = "true"
 				}
-				if hops.Kernel.From != "local" {
+				if h.Kernel.From != "local" {
 					var kernelCopy PackCopies
 					kernelCopy.SrcState = instr.Base
-					kernelCopy.SrcPath = hops.Kernel.Path
+					kernelCopy.SrcPath = h.Kernel.Path
 					kernelCopy.DstPath = DefaultKernelPath
 					instr.Copies = append(instr.Copies, kernelCopy)
 					instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
 				}
-				instr.Base = getBase(hops.Rootfs.From)
+				instr.Base = getBase(h.Rootfs.From)
 			}
 		}
 
@@ -188,19 +188,19 @@ func HopsToPack(hops Hops, buildContext string) (*PackInstructions, error) {
 		if aCopy.SrcPath != "" {
 			aCopy.DstPath = DefaultRootfsPath
 			instr.Copies = append(instr.Copies, aCopy)
-			if hops.Rootfs.Type == "initrd" {
+			if h.Rootfs.Type == "initrd" {
 				instr.Annots["com.urunc.unikernel.initrd"] = DefaultRootfsPath
-			} else if hops.Rootfs.Type == "block" {
+			} else if h.Rootfs.Type == "block" {
 				instr.Annots["com.urunc.unikernel.block"] = DefaultRootfsPath
 				instr.Annots["com.urunc.unikernel.blkMntPoint"] = "/"
 			}
 		}
 	}
-	instr.Annots["com.urunc.unikernel.unikernelType"] = hops.Platform.Framework
-	instr.Annots["com.urunc.unikernel.cmdline"] = hops.Cmd
-	instr.Annots["com.urunc.unikernel.hypervisor"] = hops.Platform.Monitor
-	if hops.Platform.Version != "" {
-		instr.Annots["com.urunc.unikernel.unikernelVersion"] = hops.Platform.Version
+	instr.Annots["com.urunc.unikernel.unikernelType"] = h.Platform.Framework
+	instr.Annots["com.urunc.unikernel.cmdline"] = h.Cmd
+	instr.Annots["com.urunc.unikernel.hypervisor"] = h.Platform.Monitor
+	if h.Platform.Version != "" {
+		instr.Annots["com.urunc.unikernel.unikernelVersion"] = h.Platform.Version
 	}
 
 	return instr, nil
@@ -231,7 +231,7 @@ func CheckBunnyfileVersion(userVersion string) error {
 // field. The conditions are:
 // 1) framework can not be empty or not set
 // 2) monitor can not be empty or not set
-func ValidatePlatform(plat HopsPlatform) error {
+func ValidatePlatform(plat Platform) error {
 	if plat.Framework == "" {
 		return fmt.Errorf("The framework field of platforms is necessary")
 	}
@@ -248,14 +248,14 @@ func ValidatePlatform(plat HopsPlatform) error {
 // 2) if path is empty then from should also be empty
 // 3) if from is not scratch or empty, include should not be set
 // 4) An entry in include can not have the first part (before ":" empty
-func ValidateRootfs(rootfs HopsRootfs) error {
+func ValidateRootfs(rootfs Rootfs) error {
 	if (rootfs.From == "scratch" || rootfs.From == "") && rootfs.Path != "" {
 		return fmt.Errorf("The from field of rootfs can not be empty or scratch, if path is set")
 	}
 	if rootfs.Path != "" && rootfs.Type == "raw" {
 		return fmt.Errorf("The path field in rootfs can not be combined with a raw rootfs")
 	}
-	if rootfs.From == "local" && rootfs.Type == "raw"  {
+	if rootfs.From == "local" && rootfs.Type == "raw" {
 		return fmt.Errorf("If type of rootfs is raw, then from can not be local")
 	}
 	if len(rootfs.Includes) > 0 && rootfs.From != "scratch" {
@@ -276,7 +276,7 @@ func ValidateRootfs(rootfs HopsRootfs) error {
 // field. The conditions are:
 // 1) from can not be empty or not set
 // 2) path not be empty or not set
-func ValidateKernel(kernel HopsKernel) error {
+func ValidateKernel(kernel Kernel) error {
 	if kernel.From == "" {
 		return fmt.Errorf("The from field of kernel is necessary")
 	}
@@ -325,14 +325,13 @@ func ParseBunnyFile(fileBytes []byte, buildContext string) (*PackInstructions, e
 		return nil, err
 	}
 
-	return HopsToPack(bunnyHops, buildContext)
+	return bunnyHops.ToPack(buildContext)
 }
 
 // ParseDockerFile reads a Dockerfile-like file and returns a Hops
 // struct with the info from the file
 func ParseDockerFile(fileBytes []byte, buildContext string) (*PackInstructions, error) {
-	var instr *PackInstructions
-	instr = new(PackInstructions)
+	instr := new(PackInstructions)
 	instr.Annots = make(map[string]string)
 	instr.Base = llb.Scratch()
 	setStage := false
@@ -402,9 +401,8 @@ func ParseFile(fileBytes []byte, buildContext string) (*PackInstructions, error)
 		if len(bytes.TrimSpace(line)) > 0 {
 			if strings.HasPrefix(string(line), "FROM") {
 				return ParseDockerFile(fileBytes, buildContext)
-			} else {
-				break
 			}
+			break
 		}
 	}
 
@@ -439,36 +437,32 @@ func initrdLLB(content llb.State) llb.State {
 	base = base.File(llb.Mkdir("/.boot/", 0755))
 	base = base.File(llb.Mkdir("/tmp", 0755))
 	base = base.Dir(DefaultInitrdContent).
-		Run(llb.Shlexf("sh -c \"find . -depth -print | tac | bsdcpio -o --format newc > %s && find /.boot && find\"", DefaultRootfsPath), llb.AddMount(DefaultInitrdContent, content),).Root()
+		Run(llb.Shlexf("sh -c \"find . -depth -print | tac | bsdcpio -o --format newc > %s && find /.boot && find\"", DefaultRootfsPath), llb.AddMount(DefaultInitrdContent, content)).Root()
 	return base
 }
 
 func copyIn(to llb.State, from PackCopies) llb.State {
 
 	copyState := to.File(llb.Copy(from.SrcState, from.SrcPath, from.DstPath,
-				&llb.CopyInfo{CreateDestPath: true,}))
+		&llb.CopyInfo{CreateDestPath: true}))
 
 	return copyState
 }
 
 // Set the base image where we will pack the unikernel
 func getBase(inputBase string) llb.State {
-	var retBase llb.State
-
 	if inputBase == "scratch" {
-		retBase = llb.Scratch()
-	} else if strings.HasPrefix(inputBase, unikraftHub) {
-		// Define the platform to qemu/amd64 so we cna pull unikraft images
+		return llb.Scratch()
+	}
+	if strings.HasPrefix(inputBase, unikraftHub) {
+		// Define the platform to qemu/amd64 so we can pull unikraft images
 		platform := ocispecs.Platform{
 			OS:           "qemu",
 			Architecture: "amd64",
 		}
-		retBase = llb.Image(inputBase, llb.Platform(platform),)
-	} else {
-		retBase = llb.Image(inputBase)
+		return llb.Image(inputBase, llb.Platform(platform))
 	}
-
-	return retBase
+	return llb.Image(inputBase)
 }
 
 // PackLLB gets a PackInstructions struct and transforms it to an LLB definition

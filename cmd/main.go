@@ -15,35 +15,35 @@
 package main
 
 import (
-	"encoding/json"
 	"context"
+	"encoding/json"
 	"flag"
-	"os"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"bunny/hops"
+
+	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/exporter/containerimage/exptypes"
+	"github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/frontend/gateway/grpcclient"
 	"github.com/moby/buildkit/util/appcontext"
-	"github.com/moby/buildkit/client/llb"
-	"github.com/moby/buildkit/frontend/gateway/client"
 	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 const (
-	buildContextName   string = "context"
-	clientOptFilename  string = "filename"
+	buildContextName  string = "context"
+	clientOptFilename string = "filename"
 )
 
 type CLIOpts struct {
 	// If set just print the version and exit
-	Version        bool
+	Version bool
 	// The Containerfile to be used for building the unikernel container
-	ContainerFile  string
+	ContainerFile string
 	// Choose the execution mode. If set, then bunny will not act as a
 	// buidlkit frontend. Instead it will just print the LLB.
-	PrintLLB       bool
+	PrintLLB bool
 }
 
 var version string
@@ -75,8 +75,8 @@ func parseCLIOpts() CLIOpts {
 
 func readFileFromLLB(ctx context.Context, c client.Client, filename string) ([]byte, error) {
 	// Get the file from client's context
-	fileSrc := llb.Local(buildContextName, llb.IncludePatterns([]string {filename}),
-				llb.WithCustomName("Internal:Read-" + filename))
+	fileSrc := llb.Local(buildContextName, llb.IncludePatterns([]string{filename}),
+		llb.WithCustomName("Internal:Read-"+filename))
 	fileDef, err := fileSrc.Marshal(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to marshal state for fetching %s: %w", clientOptFilename, err)
@@ -106,7 +106,7 @@ func readFileFromLLB(ctx context.Context, c client.Client, filename string) ([]b
 func annotateRes(annots map[string]string, res *client.Result) (*client.Result, error) {
 	ref, err := res.SingleRef()
 	if err != nil {
-		return nil, fmt.Errorf("Failed te get reference build result: %v",err)
+		return nil, fmt.Errorf("Failed te get reference build result: %v", err)
 	}
 
 	config := ocispecs.Image{
@@ -159,7 +159,7 @@ func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) 
 		return nil, fmt.Errorf("Error parsing building instructions: %v", err)
 	}
 
-	// Create the LLB definiton of packing the final image
+	// Create the LLB definition of packing the final image
 	dt, err := hops.PackLLB(*packInst)
 	if err != nil {
 		return nil, fmt.Errorf("Could not create LLB definition: %v", err)
@@ -170,13 +170,13 @@ func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) 
 		Definition: dt.ToPB(),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Failed to resolve LLB: %v",err)
+		return nil, fmt.Errorf("Failed to resolve LLB: %v", err)
 	}
 
 	// Add annotations and Labels in output image
 	result, err = annotateRes(packInst.Annots, result)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to annotate final image: %v",err)
+		return nil, fmt.Errorf("Failed to annotate final image: %v", err)
 	}
 
 	return result, nil
@@ -211,7 +211,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	CntrFileContent, err := ioutil.ReadFile(cliOpts.ContainerFile)
+	CntrFileContent, err := os.ReadFile(cliOpts.ContainerFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: Could not read %s: %v\n", cliOpts.ContainerFile, err)
 		os.Exit(1)
@@ -232,5 +232,9 @@ func main() {
 	}
 
 	// Print the LLB to give it as input in buildctl
-	llb.WriteTo(dt, os.Stdout)
+	err = llb.WriteTo(dt, os.Stdout)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: Could not write LLB to stdout: %v\n", err)
+		os.Exit(1)
+	}
 }
