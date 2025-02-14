@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 
 	"bunny/hops"
 
@@ -111,7 +112,7 @@ func annotateRes(annots map[string]string, res *client.Result) (*client.Result, 
 
 	config := ocispecs.Image{
 		Platform: ocispecs.Platform{
-			Architecture: "amd64",
+			Architecture: runtime.GOARCH,
 			OS:           "linux",
 		},
 		RootFS: ocispecs.RootFS{

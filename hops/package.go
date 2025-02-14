@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/hashicorp/go-version"
@@ -458,7 +459,7 @@ func getBase(inputBase string) llb.State {
 		// Define the platform to qemu/amd64 so we can pull unikraft images
 		platform := ocispecs.Platform{
 			OS:           "qemu",
-			Architecture: "amd64",
+			Architecture: runtime.GOARCH,
 		}
 		return llb.Image(inputBase, llb.Platform(platform))
 	}
@@ -489,7 +490,17 @@ func PackLLB(instr PackInstructions) (*llb.Definition, error) {
 	// Create the urunc.json file in the rootfs
 	base = base.File(llb.Mkfile(uruncJSONPath, 0644, uruncJSONBytes))
 
-	dt, err := base.Marshal(context.TODO(), llb.LinuxAmd64)
+	var dt *llb.Definition
+	switch runtime.GOARCH {
+	case "amd64":
+		dt, err = base.Marshal(context.TODO(), llb.LinuxAmd64)
+	case "arm":
+		dt, err = base.Marshal(context.TODO(), llb.LinuxArm)
+	case "arm64":
+		dt, err = base.Marshal(context.TODO(), llb.LinuxArm64)
+	default:
+		return nil, fmt.Errorf("Unsupported architecture: %s", runtime.GOARCH)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("Failed to marshal LLB state: %v", err)
 	}
