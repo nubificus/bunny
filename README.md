@@ -145,7 +145,7 @@ The fields of `bunnyfile` in more details:
         values are: i) `scratch`, meaning that the rootfs should get built from
         scratch, and ii) `local`, meaning that an existing rootfs file resides
         somewhere locally. The default value is `scratch`.
-    4b. The path for the file in the aformentioned source. This field is
+    4b. The path for the file in the aforementioned source. This field is
         required, if `from` has a value other than `scratch`..In the
         case where the `from` field has the value `local`, then the `path` should
         be relative to the build context.

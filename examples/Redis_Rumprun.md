@@ -2,7 +2,7 @@
 
 For this example, we assume we have already built a Redis
 [Rumprun](https://github.com/cloudkernels/rumprun) unikernel from
-[Rumprun-packages](https://github.com/cloudkernels/rumprun-packages) targetting
+[Rumprun-packages](https://github.com/cloudkernels/rumprun-packages) targeting
 [Solo5-hvt](https://github.com/Solo5/solo5).
 We can package it as an OCI image that [urunc](https://github.com/nubificus/urunc) can execute with `bunny`.
 

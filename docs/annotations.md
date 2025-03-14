@@ -2,7 +2,7 @@
 
 In order to execute unikernels as containers, we need [urunc](https://github.com/nubificus/urunc) a container runtime that
 can handle and manage the execution of unikernels. However, `urunc` needs to
-differenciate typical containers from unikernels. One way of `urunc` to achieve
+differentiate typical containers from unikernels. One way of `urunc` to achieve
 this is by using 
 annotations in the container image. As such, `bunny` treats all Labels defined in the
 Containerfile as annotations. In particular, the annotations will be stored in

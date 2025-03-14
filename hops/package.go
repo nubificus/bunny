@@ -367,7 +367,7 @@ func ParseDockerFile(fileBytes []byte, buildContext string) (*PackInstructions, 
 			aCopy.DstPath = c.DestPath
 			instr.Copies = append(instr.Copies, aCopy)
 		case *instructions.LabelCommand:
-			// Handle LABLE annotations
+			// Handle LABEL annotations
 			for _, kvp := range c.Labels {
 				annotKey := strings.Trim(kvp.Key, "\"")
 				instr.Annots[annotKey] = strings.Trim(kvp.Value, "\"")
