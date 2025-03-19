@@ -71,7 +71,7 @@ The fields of `bunnyfile` in more details:
 |    | Description | Required | Value type | Default value |
 | -  | ----------- | -------- | ------------- | ------------ |
 | 1  | instruct Buildkit to use `bunny` for parsing this file | yes | buildkit directive | - | 
-| 2  | API version of `bunnyfile` format. The version should always be higher than `bunny`'s executable major version | yes | string in major version format (vX) | - | 
+| 2  | API version of `bunnyfile` format. Current version is v0.1 | yes | string in major version format (vX) | - |
 | 3  | Information about targeting platform | yes | - | - |
 | 3a | The unikernel/libOS to target | yes | string | - |
 | 3b | The unikernel/libOS version | no | string | latest |
