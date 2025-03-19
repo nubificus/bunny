@@ -35,7 +35,7 @@ GO_FLAGS       := GOOS=linux
 GO_FLAGS       += CGO_ENABLED=0
 
 # Linking variables
-LDFLAGS_COMMON := -X main.version=$(VERSION)
+LDFLAGS_COMMON := -X bunny/hops.Version=$(VERSION)
 LDFLAGS_STATIC := --extldflags -static
 LDFLAGS_OPT    := -s -w
 

@@ -39,7 +39,6 @@ const (
 	unikraftKernelPath   string = "/unikraft/bin/kernel"
 	unikraftHub          string = "unikraft.org"
 	uruncJSONPath        string = "/urunc.json"
-	bunnyFileVersion     string = "0.1"
 )
 
 type Platform struct {
@@ -80,6 +79,8 @@ type PackInstructions struct {
 	Copies []PackCopies      // A list of packCopies, rpresenting the files to copy inside the final image
 	Annots map[string]string // Annotations
 }
+
+var Version string
 
 // ToPack converts Hops into PackInstructions
 func (h Hops) ToPack(buildContext string) (*PackInstructions, error) {
@@ -209,20 +210,22 @@ func (h Hops) ToPack(buildContext string) (*PackInstructions, error) {
 
 // CheckBunnyfileVersion checks if the version of the user's input file
 // is compatible with the supported version.
-func CheckBunnyfileVersion(userVersion string) error {
-	if userVersion == "" {
+func CheckBunnyfileVersion(fileVersion string) error {
+	if fileVersion == "" {
 		return fmt.Errorf("The version field is necessary")
 	}
-	hopsVersion, err := version.NewVersion(bunnyFileVersion)
+	// TODO: Replace tempVersion with Version, when we reach v0.1
+	tempVersion := "0.1"
+	hopsVersion, err := version.NewVersion(tempVersion)
 	if err != nil {
-		return fmt.Errorf("Internal error in current bunnyfile version %s: %v", bunnyFileVersion, err)
+		return fmt.Errorf("Internal error in current bunnyfile version %s: %v", tempVersion, err)
 	}
-	userFileVer, err := version.NewVersion(userVersion)
+	userFileVer, err := version.NewVersion(fileVersion)
 	if err != nil {
-		return fmt.Errorf("Could not parse version in user bunnyfile %s: %v", userVersion, err)
+		return fmt.Errorf("Could not parse version in user bunnyfile %s: %v", fileVersion, err)
 	}
 	if hopsVersion.LessThan(userFileVer) {
-		return fmt.Errorf("Unsupported version %s. Please use %s or earlier", userVersion, bunnyFileVersion)
+		return fmt.Errorf("Unsupported version %s. Please use %s or earlier", fileVersion, tempVersion)
 	}
 
 	return nil
