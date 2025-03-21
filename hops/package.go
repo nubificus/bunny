@@ -248,12 +248,12 @@ func ValidatePlatform(plat Platform) error {
 
 // ValidateRootfs checks if user input meets all conditions regarding the rootfs
 // field. The conditions are:
-// 1) if from is empty then path should also be empty
+// 1) if from is empty/scratch then path should also be empty
 // 2) if path is empty then from should also be empty
 // 3) if from is not scratch or empty, include should not be set
 // 4) An entry in include can not have the first part (before ":" empty
 func ValidateRootfs(rootfs Rootfs) error {
-	if (rootfs.From == "scratch" || rootfs.From == "") && rootfs.Path != "" {
+	if (rootfs.From == "scratch") && rootfs.Path != "" {
 		return fmt.Errorf("The from field of rootfs can not be empty or scratch, if path is set")
 	}
 	if rootfs.Path != "" && rootfs.Type == "raw" {
@@ -316,11 +316,13 @@ func ParseBunnyFile(fileBytes []byte, buildContext string) (*PackInstructions, e
 		return nil, err
 	}
 
-	// Set default value of from to scratch if include is specified.
-	if bunnyHops.Rootfs.From == "" && len(bunnyHops.Rootfs.Includes) > 0 {
+	// Set default value of from to scratch
+	// Make sure that any reference to Rootfs.From can not be an empty string
+	if bunnyHops.Rootfs.From == "" {
 		bunnyHops.Rootfs.From = "scratch"
 	}
-	if (bunnyHops.Rootfs.From == "scratch" || bunnyHops.Rootfs.From == "") && bunnyHops.Rootfs.Type == "" {
+	// TODO: Change it to unikernel supported rootfs type
+	if (bunnyHops.Rootfs.From == "scratch") && bunnyHops.Rootfs.Type == "" {
 
 		bunnyHops.Rootfs.Type = "raw"
 	}
