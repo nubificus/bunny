@@ -76,134 +76,132 @@ type PackCopies struct { // A struct to represent a copy operation in the final 
 
 type PackInstructions struct {
 	Base   llb.State         // The Base image to use
-	Copies []PackCopies      // A list of packCopies, rpresenting the files to copy inside the final image
+	Copies []PackCopies      // The files to copy inside the final image
 	Annots map[string]string // Annotations
 }
 
 var Version string
 
 // ToPack converts Hops into PackInstructions
-func (h Hops) ToPack(buildContext string) (*PackInstructions, error) {
-	instr := new(PackInstructions)
-	instr.Annots = make(map[string]string)
-	instr.Annots["com.urunc.unikernel.useDMBlock"] = "false"
+func ToPack(h Hops, buildContext string) (*PackInstructions, error) {
+	var framework Framework
+	instr := &PackInstructions{
+		Annots: map[string]string{
+			"com.urunc.unikernel.useDMBlock":    "false",
+			"com.urunc.unikernel.unikernelType": h.Platform.Framework,
+			"com.urunc.unikernel.cmdline":       h.Cmd,
+			"com.urunc.unikernel.hypervisor":    h.Platform.Monitor,
+		},
+	}
+	if h.Platform.Version != "" {
+		instr.Annots["com.urunc.unikernel.unikernelVersion"] = h.Platform.Version
+	}
 
 	if h.Kernel.From == "local" {
-		var aCopy PackCopies
+		var kernelCopy PackCopies
 
 		instr.Base = llb.Scratch()
 		instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
 
-		aCopy.SrcState = llb.Local(buildContext)
-		aCopy.SrcPath = h.Kernel.Path
-		aCopy.DstPath = DefaultKernelPath
-		instr.Copies = append(instr.Copies, aCopy)
+		kernelCopy.SrcState = llb.Local(buildContext)
+		kernelCopy.SrcPath = h.Kernel.Path
+		kernelCopy.DstPath = DefaultKernelPath
+		instr.Copies = append(instr.Copies, kernelCopy)
 	} else {
 		instr.Base = getBase(h.Kernel.From, h.Platform.Monitor)
 		instr.Annots["com.urunc.unikernel.binary"] = h.Kernel.Path
 	}
 
-	if h.Platform.Framework == "unikraft" {
-		var aCopy PackCopies
-		// Make sure SrcPath is set to empty string, so we can check if
-		// we got inside the if clauses and really set the SrcState and SrcPath
-		aCopy.SrcPath = ""
+	// Get the framework and call the respective function to create the
+	// rootfs.
+	switch h.Platform.Framework {
+	case unikraftName:
+		framework = newUnikraft(h.Platform, h.Rootfs)
+	default:
+		framework = newGeneric(h.Platform, h.Rootfs)
+	}
 
-		if h.Rootfs.From != "" {
+	// Make sure that the specified rootfs type is supported
+	// from the framework.
+	if h.Rootfs.Type != "" {
+		if !framework.SupportsRootfsType(h.Rootfs.Type) {
+			return nil, fmt.Errorf("Cannot build %s rootfs for %s",
+				h.Rootfs.Type, h.Platform.Framework)
+		}
+	}
+
+	if len(h.Rootfs.Includes) == 0 {
+		// If the path field in rootfs is set and there are no entries
+		// in the include field, then we do not need to create or change
+		// any rootfs, but simply use the specified file as a rootfs.
+		if h.Rootfs.Path != "" {
+			var rootfsCopy PackCopies
+
 			switch h.Rootfs.From {
 			case "local":
-				aCopy.SrcState = llb.Local(buildContext)
-				aCopy.SrcPath = h.Rootfs.Path
+				rootfsCopy.SrcState = llb.Local(buildContext)
 			case "scratch":
-				if len(h.Rootfs.Includes) > 0 {
-					local := llb.Local(buildContext)
-					contentState := FilesLLB(h.Rootfs.Includes, local, llb.Scratch())
-					aCopy.SrcState = initrdLLB(contentState)
-					aCopy.SrcPath = DefaultRootfsPath
-				}
+				return nil, fmt.Errorf("invalid combination of from and path fields in rootfs: path can not be set when from is scratch")
 			default:
-				aCopy.SrcState = llb.Image(h.Rootfs.From)
-				aCopy.SrcPath = h.Rootfs.Path
+				rootfsCopy.SrcState = llb.Image(h.Rootfs.From)
 			}
-		} else {
-			aCopy.SrcState = llb.Image(h.Rootfs.From)
-			aCopy.SrcPath = h.Rootfs.Path
-		}
-
-		// Add the Copy onli if we got in one of the above if claueses.
-		if aCopy.SrcPath != "" {
-			aCopy.DstPath = DefaultRootfsPath
-			instr.Copies = append(instr.Copies, aCopy)
-			instr.Annots["com.urunc.unikernel.initrd"] = DefaultRootfsPath
-		}
-	} else {
-		var aCopy PackCopies
-		// Make sure SrcPath is set to empty string, so we can check if
-		// we got inside the if clauses and really set the SrcState and SrcPath
-		aCopy.SrcPath = ""
-		switch h.Rootfs.From {
-		case "local":
-			aCopy.SrcState = llb.Local(buildContext)
-			aCopy.SrcPath = h.Rootfs.Path
-		case "scratch", "":
-			if len(h.Rootfs.Includes) > 0 {
-				if h.Rootfs.Type == "initrd" {
-					local := llb.Local(buildContext)
-					contentState := FilesLLB(h.Rootfs.Includes, local, llb.Scratch())
-					aCopy.SrcState = initrdLLB(contentState)
-					aCopy.SrcPath = DefaultRootfsPath
-				} else if h.Rootfs.Type == "raw" {
-					instr.Annots["com.urunc.unikernel.useDMBlock"] = "true"
-					if h.Kernel.From != "local" {
-						var kernelCopy PackCopies
-						kernelCopy.SrcState = instr.Base
-						kernelCopy.SrcPath = h.Kernel.Path
-						kernelCopy.DstPath = DefaultKernelPath
-						instr.Copies = append(instr.Copies, kernelCopy)
-						instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
-					}
-					local := llb.Local(buildContext)
-					instr.Base = FilesLLB(h.Rootfs.Includes, local, instr.Base)
-				}
-			}
-		default:
-			if h.Rootfs.Path != "" {
-				aCopy.SrcState = llb.Image(h.Rootfs.From)
-				aCopy.SrcPath = h.Rootfs.Path
-			} else {
-				if h.Rootfs.Type == "raw" {
-					instr.Annots["com.urunc.unikernel.useDMBlock"] = "true"
-				}
-				if h.Kernel.From != "local" {
-					var kernelCopy PackCopies
-					kernelCopy.SrcState = instr.Base
-					kernelCopy.SrcPath = h.Kernel.Path
-					kernelCopy.DstPath = DefaultKernelPath
-					instr.Copies = append(instr.Copies, kernelCopy)
-					instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
-				}
-				instr.Base = getBase(h.Rootfs.From, "")
-			}
-		}
-
-		// Add the Copy only if we got in one of the above if claueses.
-		if aCopy.SrcPath != "" {
-			aCopy.DstPath = DefaultRootfsPath
-			instr.Copies = append(instr.Copies, aCopy)
-			if h.Rootfs.Type == "initrd" {
+			rootfsCopy.SrcPath = h.Rootfs.Path
+			rootfsCopy.DstPath = DefaultRootfsPath
+			instr.Copies = append(instr.Copies, rootfsCopy)
+			if framework.GetRootfsType() == "initrd" {
 				instr.Annots["com.urunc.unikernel.initrd"] = DefaultRootfsPath
-			} else if h.Rootfs.Type == "block" {
-				instr.Annots["com.urunc.unikernel.block"] = DefaultRootfsPath
-				instr.Annots["com.urunc.unikernel.blkMntPoint"] = "/"
 			}
+
+			return instr, nil
 		}
+
+		// If the path field in rootfs is not set and there are np
+		// entries in the include field, then there are two scenarios:
+		// 1) The rootfs is empty and we do not have to do anything
+		// 2) The rootfs is a raw type rootfs
+		// The value that will guide us is the From field
+		if h.Rootfs.From != "scratch" {
+			// We have a raw rootfs
+			if !framework.SupportsRootfsType("raw") {
+				return nil, fmt.Errorf("%s does not support raw rootfs type", framework.Name())
+			}
+			instr.Annots["com.urunc.unikernel.useDMBlock"] = "true"
+			// Switch the base to the rootfs's From image
+			// and copy the kernel inside it.
+			var kernelCopy PackCopies
+			kernelCopy.SrcState = instr.Base
+			kernelCopy.SrcPath = h.Kernel.Path
+			kernelCopy.DstPath = DefaultKernelPath
+			instr.Copies = append(instr.Copies, kernelCopy)
+			instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+			instr.Base = getBase(h.Rootfs.From, "")
+		}
+
+		// If the from and include field of rootfs is empty, we do
+		// not need to do anything for the rootfs
+		return instr, nil
 	}
-	instr.Annots["com.urunc.unikernel.unikernelType"] = h.Platform.Framework
-	instr.Annots["com.urunc.unikernel.cmdline"] = h.Cmd
-	instr.Annots["com.urunc.unikernel.hypervisor"] = h.Platform.Monitor
-	if h.Platform.Version != "" {
-		instr.Annots["com.urunc.unikernel.unikernelVersion"] = h.Platform.Version
+
+	// The include field of rootfs is not empty, hence the user wants to
+	// create or append the rootfs. Currently only creation is supported.
+	// TODO: Support update of an existing rootfs.
+
+	// If the user has not specified a type, then CreateRootfs will build
+	// the default rootfs type for the specified framework.
+	rootfsState := framework.CreateRootfs(buildContext)
+	if framework.GetRootfsType() == "initrd" {
+		instr.Annots["com.urunc.unikernel.initrd"] = DefaultRootfsPath
 	}
+
+	// Switch the base to the rootfs's From image
+	// and copy the kernel inside it.
+	var kernelCopy PackCopies
+	kernelCopy.SrcState = instr.Base
+	kernelCopy.SrcPath = h.Kernel.Path
+	kernelCopy.DstPath = DefaultKernelPath
+	instr.Copies = append(instr.Copies, kernelCopy)
+	instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+	instr.Base = rootfsState
 
 	return instr, nil
 }
@@ -269,7 +267,7 @@ func ValidateRootfs(rootfs Rootfs) error {
 	for _, file := range rootfs.Includes {
 		parts := strings.Split(file, ":")
 		if len(parts) < 1 || len(parts[0]) == 0 {
-			return fmt.Errorf("Invalid syntax in rootf's include. AN entry can not have its first part empty")
+			return fmt.Errorf("Invalid syntax in rootf's include. An entry can not have its first part empty")
 		}
 	}
 
@@ -321,17 +319,12 @@ func ParseBunnyFile(fileBytes []byte, buildContext string) (*PackInstructions, e
 	if bunnyHops.Rootfs.From == "" {
 		bunnyHops.Rootfs.From = "scratch"
 	}
-	// TODO: Change it to unikernel supported rootfs type
-	if (bunnyHops.Rootfs.From == "scratch") && bunnyHops.Rootfs.Type == "" {
-
-		bunnyHops.Rootfs.Type = "raw"
-	}
 	err = ValidateRootfs(bunnyHops.Rootfs)
 	if err != nil {
 		return nil, err
 	}
 
-	return bunnyHops.ToPack(buildContext)
+	return ToPack(bunnyHops, buildContext)
 }
 
 // ParseDockerFile reads a Dockerfile-like file and returns a Hops
@@ -439,12 +432,12 @@ func FilesLLB(fileList []string, fromState llb.State, toState llb.State) llb.Sta
 // argument
 func initrdLLB(content llb.State) llb.State {
 	base := llb.Image(DefaultBsdcpioImage, llb.WithCustomName("Internal:Create initrd"))
-
 	base = base.File(llb.Mkdir("/.boot/", 0755))
 	base = base.File(llb.Mkdir("/tmp", 0755))
 	base = base.Dir(DefaultInitrdContent).
-		Run(llb.Shlexf("sh -c \"find . -depth -print | tac | bsdcpio -o --format newc > %s && find /.boot && find\"", DefaultRootfsPath), llb.AddMount(DefaultInitrdContent, content)).Root()
-	return base
+		Run(llb.Shlexf("sh -c \"find . -depth -print | tac | bsdcpio -o --format newc > %s\"", DefaultRootfsPath), llb.AddMount(DefaultInitrdContent, content, llb.Readonly)).Root()
+	binCopy := []string{DefaultRootfsPath + ":" + DefaultRootfsPath}
+	return FilesLLB(binCopy, base, llb.Scratch())
 }
 
 func copyIn(to llb.State, from PackCopies) llb.State {

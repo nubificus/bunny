@@ -52,7 +52,7 @@ platforms:                                      # [3] The target platform for bu
   architecture: x86                             # [3d] The target architecture.
 
 rootfs:                                         # [4] (Optional) Specifies the rootfs of the unikernel.
-  from: local                                   # [4a] (Optional) The source of the rootfs.
+  from: local                                   # [4a] (Optional) The source or base of the rootfs.
   path: initrd                                  # [4b] (Required if from is not scratch) The path in the source, where the prebuilt rootfs file resides.
   type: initrd                                  # [4c] (optional) The type of rootfs (e.g. initrd, raw, block)
   include:                                      # [4d] (Optional) A list of local files to include in the rootfs
