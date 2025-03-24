@@ -5,7 +5,7 @@ on:
     inputs:
       runner:
         type: string
-        default: '["go", "2204"]'
+        default: '["base", "dind", "2204"]'
       runner-archs:
         type: string
         default: '["amd64", "aarch64"]'
@@ -113,7 +113,7 @@ jobs:
 
   manifest:
     needs: [build-all]
-    runs-on: gcc-dind-2204-amd64 # use the GitHub-hosted runner to build the image
+    runs-on: base-dind-2204-amd64
     permissions:
       contents: write # for uploading the SBOM to the release
       packages: write # for uploading the finished container
