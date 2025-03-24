@@ -1,4 +1,4 @@
-name: 🍜 Build/publish go runners
+name: 🍜 Build/publish bunny
 
 on:
   pull_request:
@@ -58,6 +58,6 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
-      runner: '["gcc", "dind", "2204"]'
+      runner: '["base", "dind", "2204"]'
       runner-archs: '["amd64", "arm64"]'
       version-tag: ${{ needs.get-changed-files.outputs.version == 'true' }}
