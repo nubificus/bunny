@@ -82,7 +82,7 @@ func (i *UnikraftInfo) CreateRootfs(buildContext string) llb.State {
 	// Currently, by default, we will build a initrd type.
 	local := llb.Local(buildContext)
 	contentState := FilesLLB(i.Rootfs.Includes, local, llb.Scratch())
-	return initrdLLB(contentState)
+	return InitrdLLB(contentState)
 }
 
 func (i *UnikraftInfo) BuildKernel(_ string) llb.State {
