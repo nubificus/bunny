@@ -84,7 +84,7 @@ func (i *GenericInfo) CreateRootfs(buildContext string) llb.State {
 	switch i.Rootfs.Type {
 	case "initrd":
 		contentState := FilesLLB(i.Rootfs.Includes, local, llb.Scratch())
-		return initrdLLB(contentState)
+		return InitrdLLB(contentState)
 	case "raw":
 		return FilesLLB(i.Rootfs.Includes, local, llb.Scratch())
 	default:

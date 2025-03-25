@@ -428,16 +428,23 @@ func FilesLLB(fileList []string, fromState llb.State, toState llb.State) llb.Sta
 	return toState
 }
 
-// Create a LLB State that creates an initrd based on the data from the HopsRootfs
-// argument
-func initrdLLB(content llb.State) llb.State {
-	base := llb.Image(DefaultBsdcpioImage, llb.WithCustomName("Internal:Create initrd"))
-	base = base.File(llb.Mkdir("/.boot/", 0755))
-	base = base.File(llb.Mkdir("/tmp", 0755))
-	base = base.Dir(DefaultInitrdContent).
-		Run(llb.Shlexf("sh -c \"find . -depth -print | tac | bsdcpio -o --format newc > %s\"", DefaultRootfsPath), llb.AddMount(DefaultInitrdContent, content, llb.Readonly)).Root()
-	binCopy := []string{DefaultRootfsPath + ":" + DefaultRootfsPath}
-	return FilesLLB(binCopy, base, llb.Scratch())
+// Create a LLB State that constructs a cpio file with the data in the content
+// State
+func InitrdLLB(content llb.State) llb.State {
+	outDir := "/.boot"
+	workDir := "/workdir"
+	toolSet := llb.Image(DefaultBsdcpioImage, llb.WithCustomName("Internal:Create initrd")).
+		File(llb.Mkdir("/tmp", 0755))
+	cpioExec := toolSet.Dir(workDir).
+		Run(llb.Shlexf("sh -c \"find . -depth -print | tac | bsdcpio -o --format newc > %s\"", DefaultRootfsPath), llb.AddMount(workDir, content, llb.Readonly))
+	base := llb.Scratch().File(llb.Mkdir(outDir, 0755))
+	return base.With(getArtifacts(cpioExec, outDir))
+}
+
+func getArtifacts(exec llb.ExecState, outDir string) llb.StateOption {
+	return func(target llb.State) llb.State {
+		return exec.AddMount(outDir, target, llb.SourcePath(outDir))
+	}
 }
 
 func copyIn(to llb.State, from PackCopies) llb.State {
