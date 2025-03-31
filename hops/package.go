@@ -168,12 +168,14 @@ func ToPack(h Hops, buildContext string) (*PackInstructions, error) {
 			instr.Annots["com.urunc.unikernel.useDMBlock"] = "true"
 			// Switch the base to the rootfs's From image
 			// and copy the kernel inside it.
-			var kernelCopy PackCopies
-			kernelCopy.SrcState = instr.Base
-			kernelCopy.SrcPath = h.Kernel.Path
-			kernelCopy.DstPath = DefaultKernelPath
-			instr.Copies = append(instr.Copies, kernelCopy)
-			instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+			if h.Kernel.From != "local" {
+				var kernelCopy PackCopies
+				kernelCopy.SrcState = instr.Base
+				kernelCopy.SrcPath = h.Kernel.Path
+				kernelCopy.DstPath = DefaultKernelPath
+				instr.Copies = append(instr.Copies, kernelCopy)
+				instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+			}
 			instr.Base = getBase(h.Rootfs.From, "")
 		}
 
@@ -189,18 +191,25 @@ func ToPack(h Hops, buildContext string) (*PackInstructions, error) {
 	// If the user has not specified a type, then CreateRootfs will build
 	// the default rootfs type for the specified framework.
 	rootfsState := framework.CreateRootfs(buildContext)
-	if framework.GetRootfsType() == "initrd" {
+	switch framework.GetRootfsType() {
+	case "initrd":
 		instr.Annots["com.urunc.unikernel.initrd"] = DefaultRootfsPath
+	case "raw":
+		instr.Annots["com.urunc.unikernel.useDMBlock"] = "true"
+	default:
+		return nil, fmt.Errorf("Unexpected RootfsType value from framework")
 	}
 
 	// Switch the base to the rootfs's From image
 	// and copy the kernel inside it.
-	var kernelCopy PackCopies
-	kernelCopy.SrcState = instr.Base
-	kernelCopy.SrcPath = h.Kernel.Path
-	kernelCopy.DstPath = DefaultKernelPath
-	instr.Copies = append(instr.Copies, kernelCopy)
-	instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+	if h.Kernel.From != "local" {
+		var kernelCopy PackCopies
+		kernelCopy.SrcState = instr.Base
+		kernelCopy.SrcPath = h.Kernel.Path
+		kernelCopy.DstPath = DefaultKernelPath
+		instr.Copies = append(instr.Copies, kernelCopy)
+		instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+	}
 	instr.Base = rootfsState
 
 	return instr, nil
