@@ -111,6 +111,21 @@ clean:
 lint:
 	$(CNTR_TOOL) $(LINT_CNTR_OPTS) $(LINT_CNTR_IMG) $(LINT_CNTR_CMD)
 
+# Testing targets
+## test Run all tests
+.PHONY: test
+test: unittest
+
+## unittest Run all unit tests
+.PHONY: unittest
+unittest: test_validate
+
+## test_validate Run unit tests for hops package regarding input validation
+test_validate:
+	@echo "Unit testing in input validation"
+	@GOFLAGS=$(TEST_FLAGS) $(GO) test $(TEST_OPTS) ./hops -run TestValidate -v
+	@echo " "
+
 ## help Show this help message
 help:
 	@echo 'Usage: make <target> <flags>'
