@@ -68,7 +68,7 @@ func ValidatePlatform(plat Platform) error {
 // 3) if from is not scratch or empty, include should not be set
 // 4) An entry in include can not have the first part (before ":" empty
 func ValidateRootfs(rootfs Rootfs) error {
-	if (rootfs.From == "scratch") && rootfs.Path != "" {
+	if (rootfs.From == "scratch" || rootfs.From == "") && rootfs.Path != "" {
 		return fmt.Errorf("The from field of rootfs can not be empty or scratch, if path is set")
 	}
 	if rootfs.Path != "" && rootfs.Type == "raw" {
@@ -77,10 +77,10 @@ func ValidateRootfs(rootfs Rootfs) error {
 	if rootfs.From == "local" && rootfs.Type == "raw" {
 		return fmt.Errorf("If type of rootfs is raw, then from can not be local")
 	}
-	if len(rootfs.Includes) > 0 && rootfs.From != "scratch" {
+
+	if len(rootfs.Includes) > 0 && rootfs.From != "" && rootfs.From != "scratch" {
 		return fmt.Errorf("Adding files to an existing rootfs is not yet supported")
 	}
-
 	for _, file := range rootfs.Includes {
 		parts := strings.Split(file, ":")
 		if len(parts) < 1 || len(parts[0]) == 0 {
