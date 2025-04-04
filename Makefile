@@ -13,8 +13,7 @@
 # limitations under the License.
 
 # Versioning variables
-COMMIT         := $(shell git describe --dirty --long --always)
-VERSION        := $(shell cat $(CURDIR)/VERSION)-$(COMMIT)
+VERSION        := $(shell git describe --dirty --long --always)
 
 # Path variables
 #
@@ -35,7 +34,7 @@ GO_FLAGS       := GOOS=linux
 GO_FLAGS       += CGO_ENABLED=0
 
 # Linking variables
-LDFLAGS_COMMON := -X bunny/hops.Version=$(VERSION)
+LDFLAGS_COMMON := -X main.version=$(VERSION)
 LDFLAGS_STATIC := --extldflags -static
 LDFLAGS_OPT    := -s -w
 

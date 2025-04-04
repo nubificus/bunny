@@ -47,6 +47,8 @@ type CLIOpts struct {
 	PrintLLB bool
 }
 
+var version string
+
 func usage() {
 
 	fmt.Println("Usage of bunny")
@@ -188,7 +190,8 @@ func main() {
 	cliOpts = parseCLIOpts()
 
 	if cliOpts.Version {
-		fmt.Printf("bunny version %s\n", hops.Version)
+		fmt.Printf("bunny version:\t\t %s\n", version)
+		fmt.Printf("Hops API version:\t %s\n", hops.Version)
 		return
 	}
 
