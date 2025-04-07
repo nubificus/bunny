@@ -118,7 +118,13 @@ test: unittest
 
 ## unittest Run all unit tests
 .PHONY: unittest
-unittest: test_validate
+unittest: test_validate test_parse
+
+## test_parse Run unit tests for hops package regarding file parsing
+test_parse:
+	@echo "Unit testing for files parsing"
+	@GOFLAGS=$(TEST_FLAGS) $(GO) test $(TEST_OPTS) ./hops -run TestParse -v
+	@echo " "
 
 ## test_validate Run unit tests for hops package regarding input validation
 test_validate:
