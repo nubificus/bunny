@@ -25,10 +25,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ParseBunnyFile reads a yaml file which contains instructions for
+// ParseBunnyfile reads a yaml file which contains instructions for
 // bunny.
-func ParseBunnyFile(fileBytes []byte, buildContext string) (*PackInstructions, error) {
-	var bunnyHops Hops
+func ParseBunnyfile(fileBytes []byte) (*Hops, error) {
+	bunnyHops := &Hops{}
 
 	err := yaml.Unmarshal(fileBytes, &bunnyHops)
 	if err != nil {
@@ -60,12 +60,12 @@ func ParseBunnyFile(fileBytes []byte, buildContext string) (*PackInstructions, e
 		return nil, err
 	}
 
-	return ToPack(bunnyHops, buildContext)
+	return bunnyHops, nil
 }
 
-// ParseDockerFile reads a Dockerfile-like file and returns a Hops
+// ParseContainerfile reads a Dockerfile-like file and returns a Hops
 // struct with the info from the file
-func ParseDockerFile(fileBytes []byte, buildContext string) (*PackInstructions, error) {
+func ParseContainerfile(fileBytes []byte, buildContext string) (*PackInstructions, error) {
 	instr := new(PackInstructions)
 	instr.Annots = make(map[string]string)
 	instr.Base = llb.Scratch()
@@ -120,7 +120,7 @@ func ParseDockerFile(fileBytes []byte, buildContext string) (*PackInstructions, 
 }
 
 // ParseFile identifies the format of the given file and either calls
-// ParseDockerFile or ParseBunnyFile
+// ParseContainerfile or ParseBunnyfile
 func ParseFile(fileBytes []byte, buildContext string) (*PackInstructions, error) {
 	lines := bytes.Split(fileBytes, []byte("\n"))
 
@@ -135,11 +135,15 @@ func ParseFile(fileBytes []byte, buildContext string) (*PackInstructions, error)
 	for _, line := range lines[1:] {
 		if len(bytes.TrimSpace(line)) > 0 {
 			if strings.HasPrefix(string(line), "FROM") {
-				return ParseDockerFile(fileBytes, buildContext)
+				return ParseContainerfile(fileBytes, buildContext)
 			}
 			break
 		}
 	}
 
-	return ParseBunnyFile(fileBytes, buildContext)
+	hops, err := ParseBunnyfile(fileBytes)
+	if err != nil {
+		return nil, err
+	}
+	return ToPack(hops, buildContext)
 }

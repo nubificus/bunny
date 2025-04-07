@@ -76,7 +76,7 @@ type PackInstructions struct {
 }
 
 // ToPack converts Hops into PackInstructions
-func ToPack(h Hops, buildContext string) (*PackInstructions, error) {
+func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 	var framework Framework
 	instr := &PackInstructions{
 		Annots: map[string]string{
