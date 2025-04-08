@@ -1,0 +1,26 @@
+name: Run unit tests
+
+on:
+    pull_request:
+      branches: ["main"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-test-amd64:
+    name: unit-test-amd64
+    runs-on: base-dind-2204-amd64
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run bunny unit tests
+        run: make unittest
+
+  unit-test-aarch64:
+    name: unit-test-arm64
+    runs-on: base-dind-2204-arm64
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run bunny unit tests
+        run: make unittest
