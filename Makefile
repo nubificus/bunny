@@ -118,7 +118,13 @@ test: unittest
 
 ## unittest Run all unit tests
 .PHONY: unittest
-unittest: test_validate test_parse
+unittest: test_validate test_parse test_llb
+
+## test_llb Run unit tests for hops package regarding LLB state creations
+test_llb:
+	@echo "Unit testing LLB state generation"
+	@GOFLAGS=$(TEST_FLAGS) $(GO) test $(TEST_OPTS) ./hops -run TestLLB -v
+	@echo " "
 
 ## test_parse Run unit tests for hops package regarding file parsing
 test_parse:

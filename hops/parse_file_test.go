@@ -15,8 +15,10 @@
 package hops
 
 import (
+	"context"
 	"testing"
 
+	"github.com/moby/buildkit/solver/pb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -254,6 +256,55 @@ FROM bar
 			}
 		})
 	}
+}
+
+func TestParseContainerfile(t *testing.T) {
+	t.Run("PackInstructions all fields", func(t *testing.T) {
+		input := []byte(`
+FROM scratch
+COPY foo bar
+LABEL foo=bar
+`)
+		i, err := ParseContainerfile(input, "context")
+		require.NoError(t, err)
+		require.NotNil(t, i)
+		require.Equal(t, "bar", i.Annots["foo"])
+		def, err := i.Base.Marshal(context.TODO())
+		require.NoError(t, err)
+		_, arr := parseDef(t, def.Def)
+		require.Equal(t, 0, len(arr))
+		require.Len(t, i.Copies, 1)
+		require.Equal(t, "foo", i.Copies[0].SrcPath)
+		require.Equal(t, "bar", i.Copies[0].DstPath)
+		def, err = i.Copies[0].SrcState.Marshal(context.TODO())
+		require.NoError(t, err)
+		_, arr = parseDef(t, def.Def)
+		require.Equal(t, 2, len(arr))
+		s := arr[0].Op.(*pb.Op_Source).Source
+		require.Equal(t, "local://context", s.Identifier)
+	})
+
+	t.Run("PackInstructions no copies", func(t *testing.T) {
+		input := []byte(`
+FROM harbor.nbfc.io/foo
+LABEL foo=bar
+LABEL bar=foo
+`)
+		i, err := ParseContainerfile(input, "foo")
+		require.NoError(t, err)
+		require.NotNil(t, i)
+		def, err := i.Base.Marshal(context.TODO())
+		require.NoError(t, err)
+		_, arr := parseDef(t, def.Def)
+		require.Equal(t, 2, len(arr))
+		s := arr[0].Op.(*pb.Op_Source).Source
+		require.Equal(t, "docker-image://harbor.nbfc.io/foo:latest", s.Identifier)
+
+		require.Equal(t, "bar", i.Annots["foo"])
+		require.Equal(t, "foo", i.Annots["bar"])
+		require.Len(t, i.Copies, 0)
+	})
+
 }
 
 func TestParsefile(t *testing.T) {
