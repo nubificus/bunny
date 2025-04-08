@@ -20,10 +20,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
-	"strings"
 
 	"github.com/moby/buildkit/client/llb"
-	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 const (
@@ -101,7 +99,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 		kernelCopy.DstPath = DefaultKernelPath
 		instr.Copies = append(instr.Copies, kernelCopy)
 	} else {
-		instr.Base = getBase(h.Kernel.From, h.Platform.Monitor)
+		instr.Base = BaseLLB(h.Kernel.From, h.Platform.Monitor)
 		instr.Annots["com.urunc.unikernel.binary"] = h.Kernel.Path
 	}
 
@@ -169,7 +167,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 				instr.Copies = append(instr.Copies, kernelCopy)
 				instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
 			}
-			instr.Base = getBase(h.Rootfs.From, "")
+			instr.Base = BaseLLB(h.Rootfs.From, "")
 		}
 
 		// If the from and include field of rootfs is empty, we do
@@ -208,72 +206,6 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 	return instr, nil
 }
 
-// Create a LLB State that simply copies all the files in the include list inside
-// an empty image
-func FilesLLB(fileList []string, fromState llb.State, toState llb.State) llb.State {
-	for _, file := range fileList {
-		var aCopy PackCopies
-
-		parts := strings.Split(file, ":")
-		aCopy.SrcState = fromState
-		aCopy.SrcPath = parts[0]
-		// If user did not define destination path, use the same as the source
-		aCopy.DstPath = parts[0]
-		if len(parts) != 1 && len(parts[1]) > 0 {
-			aCopy.DstPath = parts[1]
-		}
-		toState = copyIn(toState, aCopy)
-	}
-
-	return toState
-}
-
-// Create a LLB State that constructs a cpio file with the data in the content
-// State
-func InitrdLLB(content llb.State) llb.State {
-	outDir := "/.boot"
-	workDir := "/workdir"
-	toolSet := llb.Image(DefaultBsdcpioImage, llb.WithCustomName("Internal:Create initrd")).
-		File(llb.Mkdir("/tmp", 0755))
-	cpioExec := toolSet.Dir(workDir).
-		Run(llb.Shlexf("sh -c \"find . -depth -print | tac | bsdcpio -o --format newc > %s\"", DefaultRootfsPath), llb.AddMount(workDir, content, llb.Readonly))
-	base := llb.Scratch().File(llb.Mkdir(outDir, 0755))
-	return base.With(getArtifacts(cpioExec, outDir))
-}
-
-func getArtifacts(exec llb.ExecState, outDir string) llb.StateOption {
-	return func(target llb.State) llb.State {
-		return exec.AddMount(outDir, target, llb.SourcePath(outDir))
-	}
-}
-
-func copyIn(to llb.State, from PackCopies) llb.State {
-
-	copyState := to.File(llb.Copy(from.SrcState, from.SrcPath, from.DstPath,
-		&llb.CopyInfo{CreateDestPath: true}))
-
-	return copyState
-}
-
-// Set the base image where we will pack the unikernel
-func getBase(inputBase string, monitor string) llb.State {
-	if monitor == "firecracker" {
-		monitor = "fc"
-	}
-	if inputBase == "scratch" {
-		return llb.Scratch()
-	}
-	if strings.HasPrefix(inputBase, unikraftHub) {
-		// Define the platform to qemu/amd64 so we can pull unikraft images
-		platform := ocispecs.Platform{
-			OS:           monitor,
-			Architecture: runtime.GOARCH,
-		}
-		return llb.Image(inputBase, llb.Platform(platform))
-	}
-	return llb.Image(inputBase)
-}
-
 // PackLLB gets a PackInstructions struct and transforms it to an LLB definition
 func PackLLB(instr PackInstructions) (*llb.Definition, error) {
 	var base llb.State
@@ -292,7 +224,7 @@ func PackLLB(instr PackInstructions) (*llb.Definition, error) {
 
 	// Perform any copies inside the image
 	for _, aCopy := range instr.Copies {
-		base = copyIn(base, aCopy)
+		base = CopyLLB(base, aCopy)
 	}
 
 	// Create the urunc.json file in the rootfs

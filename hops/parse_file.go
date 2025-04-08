@@ -114,7 +114,7 @@ func ParseContainerfile(fileBytes []byte, buildContext string) (*PackInstruction
 		}
 
 	}
-	instr.Base = getBase(BaseString, instr.Annots["com.urunc.unikernel.hypervisor"])
+	instr.Base = BaseLLB(BaseString, instr.Annots["com.urunc.unikernel.hypervisor"])
 
 	return instr, nil
 }
