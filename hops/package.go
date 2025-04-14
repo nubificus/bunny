@@ -181,7 +181,10 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 
 	// If the user has not specified a type, then CreateRootfs will build
 	// the default rootfs type for the specified framework.
-	rootfsState := framework.CreateRootfs(buildContext)
+	rootfsState, err := framework.CreateRootfs(buildContext)
+	if err != nil {
+		return nil, err
+	}
 	switch framework.GetRootfsType() {
 	case "initrd":
 		instr.Annots["com.urunc.unikernel.initrd"] = DefaultRootfsPath

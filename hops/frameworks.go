@@ -25,6 +25,6 @@ type Framework interface {
 	SupportsFsType(string) bool
 	SupportsMonitor(string) bool
 	SupportsArch(string) bool
-	CreateRootfs(string) llb.State
+	CreateRootfs(string) (llb.State, error)
 	BuildKernel(string) llb.State
 }

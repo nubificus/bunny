@@ -31,7 +31,8 @@ func TestLLBFiles(t *testing.T) {
 		dst := llb.Scratch()
 		files := []string{"foo1"}
 
-		state := FilesLLB(files, src, dst)
+		state, err := FilesLLB(files, src, dst)
+		require.NoError(t, err)
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)
@@ -63,7 +64,8 @@ func TestLLBFiles(t *testing.T) {
 		dst := llb.Image("foo")
 		files := []string{"foo1:bar1", "foo2:bar2"}
 
-		state := FilesLLB(files, src, dst)
+		state, err := FilesLLB(files, src, dst)
+		require.NoError(t, err)
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)
@@ -103,7 +105,8 @@ func TestLLBFiles(t *testing.T) {
 		dst := llb.Scratch()
 		files := []string{}
 
-		state := FilesLLB(files, src, dst)
+		state, err := FilesLLB(files, src, dst)
+		require.NoError(t, err)
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)
@@ -115,7 +118,8 @@ func TestLLBFiles(t *testing.T) {
 		dst := llb.Scratch()
 		files := []string{":foo"}
 
-		state := FilesLLB(files, src, dst)
+		state, err := FilesLLB(files, src, dst)
+		require.EqualError(t, err, "Invalid format of the file list to copy")
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)
@@ -127,7 +131,8 @@ func TestLLBFiles(t *testing.T) {
 		dst := llb.Scratch()
 		files := []string{"foo:a:b"}
 
-		state := FilesLLB(files, src, dst)
+		state, err := FilesLLB(files, src, dst)
+		require.EqualError(t, err, "Invalid format of the file list to copy")
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)

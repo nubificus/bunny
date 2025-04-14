@@ -15,6 +15,8 @@
 package hops
 
 import (
+	"fmt"
+
 	"github.com/moby/buildkit/client/llb"
 )
 
@@ -79,17 +81,20 @@ func (i *GenericInfo) SupportsArch(arch string) bool {
 	}
 }
 
-func (i *GenericInfo) CreateRootfs(buildContext string) llb.State {
+func (i *GenericInfo) CreateRootfs(buildContext string) (llb.State, error) {
 	local := llb.Local(buildContext)
 	switch i.Rootfs.Type {
 	case "initrd":
-		contentState := FilesLLB(i.Rootfs.Includes, local, llb.Scratch())
-		return InitrdLLB(contentState)
+		contentState, err := FilesLLB(i.Rootfs.Includes, local, llb.Scratch())
+		if err != nil {
+			return llb.Scratch(), err
+		}
+		return InitrdLLB(contentState), nil
 	case "raw":
 		return FilesLLB(i.Rootfs.Includes, local, llb.Scratch())
 	default:
 		// We should never reach this point
-		return llb.Scratch()
+		return llb.Scratch(), fmt.Errorf("Unsupported rootfs type")
 	}
 }
 
