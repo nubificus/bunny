@@ -77,12 +77,15 @@ func (i *UnikraftInfo) SupportsArch(arch string) bool {
 	}
 }
 
-func (i *UnikraftInfo) CreateRootfs(buildContext string) llb.State {
+func (i *UnikraftInfo) CreateRootfs(buildContext string) (llb.State, error) {
 	// TODO: Add support for any other possible supported rootfs types
 	// Currently, by default, we will build a initrd type.
 	local := llb.Local(buildContext)
-	contentState := FilesLLB(i.Rootfs.Includes, local, llb.Scratch())
-	return InitrdLLB(contentState)
+	contentState, err := FilesLLB(i.Rootfs.Includes, local, llb.Scratch())
+	if err != nil {
+		return llb.Scratch(), err
+	}
+	return InitrdLLB(contentState), nil
 }
 
 func (i *UnikraftInfo) BuildKernel(_ string) llb.State {
