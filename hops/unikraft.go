@@ -29,7 +29,7 @@ type UnikraftInfo struct {
 	Rootfs  Rootfs
 }
 
-func newUnikraft(plat Platform, rfs Rootfs) *UnikraftInfo {
+func NewUnikraft(plat Platform, rfs Rootfs) *UnikraftInfo {
 	if rfs.Type == "" {
 		rfs.Type = "initrd"
 	}
@@ -62,8 +62,13 @@ func (i *UnikraftInfo) SupportsFsType(string) bool {
 	return false
 }
 
-func (i *UnikraftInfo) SupportsMonitor(string) bool {
-	return false
+func (i *UnikraftInfo) SupportsMonitor(monitor string) bool {
+	switch monitor {
+	case "qemu", "firecracker":
+		return true
+	default:
+		return false
+	}
 }
 
 func (i *UnikraftInfo) SupportsArch(arch string) bool {
