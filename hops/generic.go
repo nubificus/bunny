@@ -31,7 +31,7 @@ type GenericInfo struct {
 	Rootfs  Rootfs
 }
 
-func newGeneric(plat Platform, rfs Rootfs) *GenericInfo {
+func NewGeneric(plat Platform, rfs Rootfs) *GenericInfo {
 	if rfs.Type == "" {
 		rfs.Type = "raw"
 	}
@@ -63,22 +63,15 @@ func (i *GenericInfo) SupportsRootfsType(rootfsType string) bool {
 }
 
 func (i *GenericInfo) SupportsFsType(string) bool {
-	return false
+	return true
 }
 
 func (i *GenericInfo) SupportsMonitor(string) bool {
-	return false
+	return true
 }
 
-func (i *GenericInfo) SupportsArch(arch string) bool {
-	switch arch {
-	case "x86_64", "amd64":
-		return true
-	case "aarch64":
-		return true
-	default:
-		return false
-	}
+func (i *GenericInfo) SupportsArch(_ string) bool {
+	return true
 }
 
 func (i *GenericInfo) CreateRootfs(buildContext string) (llb.State, error) {
