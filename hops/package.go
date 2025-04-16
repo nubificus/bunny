@@ -113,7 +113,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 	case unikraftName:
 		framework = NewUnikraft(h.Platform, h.Rootfs)
 	default:
-		framework = newGeneric(h.Platform, h.Rootfs)
+		framework = NewGeneric(h.Platform, h.Rootfs)
 	}
 
 	// Make sure that the specified rootfs type is supported
