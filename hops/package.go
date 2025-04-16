@@ -38,7 +38,7 @@ type Platform struct {
 	Framework string `yaml:"framework"`
 	Version   string `yaml:"version"`
 	Monitor   string `yaml:"monitor"`
-	Arch      string `yaml:"arch"`
+	Arch      string `yaml:"architecture"`
 }
 
 type Rootfs struct {
@@ -53,11 +53,20 @@ type Kernel struct {
 	Path string `yaml:"path"`
 }
 
+type App struct {
+	Name     string `yaml:"name"`
+	From     string `yaml:"from"`
+	Branch   string `yaml:"branch"`
+	Path     string `yaml:"path"`
+	Language string `yaml:"language"`
+}
+
 type Hops struct {
 	Version  string   `yaml:"version"`
 	Platform Platform `yaml:"platforms"`
 	Rootfs   Rootfs   `yaml:"rootfs"`
 	Kernel   Kernel   `yaml:"kernel"`
+	App      App      `yaml:"app"`
 	Cmd      string   `yaml:"cmdline"`
 }
 
@@ -88,28 +97,37 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 		instr.Annots["com.urunc.unikernel.unikernelVersion"] = h.Platform.Version
 	}
 
-	if h.Kernel.From == "local" {
-		var kernelCopy PackCopies
-
-		instr.Base = llb.Scratch()
-		instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
-
-		kernelCopy.SrcState = llb.Local(buildContext)
-		kernelCopy.SrcPath = h.Kernel.Path
-		kernelCopy.DstPath = DefaultKernelPath
-		instr.Copies = append(instr.Copies, kernelCopy)
-	} else {
-		instr.Base = BaseLLB(h.Kernel.From, h.Platform.Monitor)
-		instr.Annots["com.urunc.unikernel.binary"] = h.Kernel.Path
-	}
-
 	// Get the framework and call the respective function to create the
 	// rootfs.
 	switch h.Platform.Framework {
 	case unikraftName:
 		framework = newUnikraft(h.Platform, h.Rootfs)
+	case rumprunName:
+		framework = newRumprun(h.Platform, h.Rootfs, h.App)
 	default:
 		framework = newGeneric(h.Platform, h.Rootfs)
+	}
+
+	if h.Kernel.From != "" {
+		if h.Kernel.From == "local" {
+			var kernelCopy PackCopies
+
+			instr.Base = llb.Scratch()
+			instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+
+			kernelCopy.SrcState = llb.Local(buildContext)
+			kernelCopy.SrcPath = h.Kernel.Path
+			kernelCopy.DstPath = DefaultKernelPath
+			instr.Copies = append(instr.Copies, kernelCopy)
+		} else {
+			instr.Base = BaseLLB(h.Kernel.From, h.Platform.Monitor)
+			instr.Annots["com.urunc.unikernel.binary"] = h.Kernel.Path
+		}
+	} else {
+		if h.App.Name != "" {
+			instr.Base = framework.BuildKernel(buildContext)
+			instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+		}
 	}
 
 	// Make sure that the specified rootfs type is supported
@@ -159,10 +177,10 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 			instr.Annots["com.urunc.unikernel.useDMBlock"] = "true"
 			// Switch the base to the rootfs's From image
 			// and copy the kernel inside it.
-			if h.Kernel.From != "local" {
+			if (h.Kernel.From != "local") || (h.Kernel.From == "" && h.App.Name != "") {
 				var kernelCopy PackCopies
 				kernelCopy.SrcState = instr.Base
-				kernelCopy.SrcPath = h.Kernel.Path
+				kernelCopy.SrcPath = instr.Annots["com.urunc.unikernel.binary"]
 				kernelCopy.DstPath = DefaultKernelPath
 				instr.Copies = append(instr.Copies, kernelCopy)
 				instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
@@ -193,10 +211,10 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 
 	// Switch the base to the rootfs's From image
 	// and copy the kernel inside it.
-	if h.Kernel.From != "local" {
+	if (h.Kernel.From != "local") || (h.Kernel.From == "" && h.App.Name != "") {
 		var kernelCopy PackCopies
 		kernelCopy.SrcState = instr.Base
-		kernelCopy.SrcPath = h.Kernel.Path
+		kernelCopy.SrcPath = instr.Annots["com.urunc.unikernel.binary"]
 		kernelCopy.DstPath = DefaultKernelPath
 		instr.Copies = append(instr.Copies, kernelCopy)
 		instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath

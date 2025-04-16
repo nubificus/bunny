@@ -105,3 +105,22 @@ func ValidateKernel(kernel Kernel) error {
 
 	return nil
 }
+
+// ValidateApp checks if user input meets all conditions regarding the app
+// field. The conditions are:
+// 1) name can not be empty
+// 2) from can not be empty
+// 3) branch can not be empty
+func ValidateApp(app App) error {
+	if app.Name == "" {
+		return fmt.Errorf("The name field of app is necessary")
+	}
+	if app.From == "" {
+		return fmt.Errorf("The from field of app is necessary")
+	}
+	if app.Branch == "" {
+		return fmt.Errorf("The branch field of app is necessary")
+	}
+
+	return nil
+}
