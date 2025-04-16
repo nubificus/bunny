@@ -118,12 +118,18 @@ test: unittest
 
 ## unittest Run all unit tests
 .PHONY: unittest
-unittest: test_validate test_parse test_llb test_unikraft
+unittest: test_validate test_parse test_llb test_unikraft test_generic
 
 ## test_llb Run unit tests for hops package regarding LLB state creations
 test_llb:
 	@echo "Unit testing LLB state generation"
 	@GOFLAGS=$(TEST_FLAGS) $(GO) test $(TEST_OPTS) ./hops -run TestLLB -v
+	@echo " "
+
+## test_generic Run unit tests for hops package regarding generic framework
+test_generic:
+	@echo "Unit testing for generic framework implementation"
+	@GOFLAGS=$(TEST_FLAGS) $(GO) test $(TEST_OPTS) ./hops -run TestGeneric -v
 	@echo " "
 
 ## test_unikraft Run unit tests for hops package regarding unikraft framework
