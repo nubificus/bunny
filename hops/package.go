@@ -25,20 +25,17 @@ import (
 )
 
 const (
-	DefaultBsdcpioImage  string = "harbor.nbfc.io/nubificus/bunny/libarchive:latest"
-	DefaultInitrdContent string = "/initrd/"
-	DefaultKernelPath    string = "/.boot/kernel"
-	DefaultRootfsPath    string = "/.boot/rootfs"
-	unikraftKernelPath   string = "/unikraft/bin/kernel"
-	unikraftHub          string = "unikraft.org"
-	uruncJSONPath        string = "/urunc.json"
+	DefaultKernelPath string = "/.boot/kernel"
+	DefaultRootfsPath string = "/.boot/rootfs"
+	unikraftHub       string = "unikraft.org"
+	uruncJSONPath     string = "/urunc.json"
 )
 
 type Platform struct {
 	Framework string `yaml:"framework"`
 	Version   string `yaml:"version"`
 	Monitor   string `yaml:"monitor"`
-	Arch      string `yaml:"arch"`
+	Arch      string `yaml:"architecture"`
 }
 
 type Rootfs struct {
@@ -61,16 +58,23 @@ type Hops struct {
 	Cmd      string   `yaml:"cmdline"`
 }
 
-type PackCopies struct { // A struct to represent a copy operation in the final image
-	SrcState llb.State // The state where the file resides
-	SrcPath  string    // The source path inside the SrcState where the file resides
-	DstPath  string    // The destination path to copy the file inside the final image
+// A struct to represent a copy operation in the final image
+type PackCopies struct {
+	// The state where the file resides
+	SrcState llb.State
+	// The source path inside the SrcState where the file resides
+	SrcPath string
+	// The destination path to copy the file inside the final image
+	DstPath string
 }
 
 type PackInstructions struct {
-	Base   llb.State         // The Base image to use
-	Copies []PackCopies      // The files to copy inside the final image
-	Annots map[string]string // Annotations
+	// The Base image to use
+	Base llb.State
+	// The files to copy inside the final image
+	Copies []PackCopies
+	// Annotations
+	Annots map[string]string
 }
 
 // ToPack converts Hops into PackInstructions

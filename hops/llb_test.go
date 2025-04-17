@@ -212,7 +212,7 @@ func TestLLBInitrd(t *testing.T) {
 	})
 	t.Run("Tool state", func(t *testing.T) {
 		toolSrc := tools.Op.(*pb.Op_Source).Source
-		require.Equal(t, "docker-image://"+DefaultBsdcpioImage, toolSrc.Identifier)
+		require.Equal(t, "docker-image://"+defaultBsdcpioImage, toolSrc.Identifier)
 	})
 }
 
