@@ -118,8 +118,10 @@ func ValidateApp(app App) error {
 	if app.From == "" {
 		return fmt.Errorf("The from field of app is necessary")
 	}
-	if app.Branch == "" {
-		return fmt.Errorf("The branch field of app is necessary")
+	if app.From != "local" {
+		if app.Branch == "" {
+			return fmt.Errorf("The branch field of app is necessary")
+		}
 	}
 
 	return nil

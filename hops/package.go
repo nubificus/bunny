@@ -102,6 +102,8 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 	switch h.Platform.Framework {
 	case unikraftName:
 		framework = newUnikraft(h.Platform, h.Rootfs)
+	case mirageName:
+		framework = newMirage(h.Platform, h.Rootfs, h.App)
 	case rumprunName:
 		framework = newRumprun(h.Platform, h.Rootfs, h.App)
 	default:
