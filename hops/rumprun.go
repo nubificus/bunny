@@ -87,7 +87,7 @@ func (i *rumprunInfo) SupportsArch(arch string) bool {
 
 func (i *rumprunInfo) CreateRootfs(buildContext string) llb.State {
 	local := llb.Local(buildContext)
-	return FilesLLB(i.Rootfs.Includes, local, llb.Scratch())
+	return FilesLLB(i.Rootfs.Includes, local, llb.Scratch(), -1)
 }
 
 func (i *rumprunInfo) BuildKernel(buildContext string) llb.State {

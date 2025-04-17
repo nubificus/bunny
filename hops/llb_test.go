@@ -218,7 +218,7 @@ func TestLLBCopy(t *testing.T) {
 		SrcPath:  "src",
 		DstPath:  "dst",
 	}
-	state := CopyLLB(dest, from)
+	state := CopyLLB(dest, from, 0)
 	def, err := state.Marshal(context.TODO())
 
 	require.NoError(t, err)

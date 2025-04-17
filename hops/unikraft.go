@@ -81,7 +81,7 @@ func (i *UnikraftInfo) CreateRootfs(buildContext string) llb.State {
 	// TODO: Add support for any other possible supported rootfs types
 	// Currently, by default, we will build a initrd type.
 	local := llb.Local(buildContext)
-	contentState := FilesLLB(i.Rootfs.Includes, local, llb.Scratch())
+	contentState := FilesLLB(i.Rootfs.Includes, local, llb.Scratch(), -1)
 	return InitrdLLB(contentState)
 }
 

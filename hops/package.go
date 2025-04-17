@@ -242,7 +242,7 @@ func PackLLB(instr PackInstructions) (*llb.Definition, error) {
 
 	// Perform any copies inside the image
 	for _, aCopy := range instr.Copies {
-		base = CopyLLB(base, aCopy)
+		base = CopyLLB(base, aCopy, -1)
 	}
 
 	// Create the urunc.json file in the rootfs
