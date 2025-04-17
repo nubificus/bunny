@@ -23,6 +23,10 @@ import (
 	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
+const (
+	defaultBsdcpioImage string = "harbor.nbfc.io/nubificus/bunny/libarchive:latest"
+)
+
 // Create a LLB State that simply copies all the files in the include list inside
 // an empty image
 func FilesLLB(fileList []string, fromState llb.State, toState llb.State) (llb.State, error) {
@@ -56,7 +60,7 @@ func FilesLLB(fileList []string, fromState llb.State, toState llb.State) (llb.St
 func InitrdLLB(content llb.State) llb.State {
 	outDir := "/.boot"
 	workDir := "/workdir"
-	toolSet := llb.Image(DefaultBsdcpioImage, llb.WithCustomName("Internal:Create initrd")).
+	toolSet := llb.Image(defaultBsdcpioImage, llb.WithCustomName("Internal:Create initrd")).
 		File(llb.Mkdir("/tmp", 0755))
 	cpioExec := toolSet.Dir(workDir).
 		Run(llb.Shlexf("sh -c \"find . -depth -print | tac | bsdcpio -o --format newc > %s\"", DefaultRootfsPath), llb.AddMount(workDir, content, llb.Readonly))
