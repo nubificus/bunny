@@ -120,7 +120,6 @@ func annotateRes(annots map[string]string, res *client.Result) (*client.Result, 
 		},
 		Config: ocispecs.ImageConfig{
 			WorkingDir: "/",
-			Entrypoint: []string{"/hello2"},
 			Labels:     annots,
 		},
 	}
