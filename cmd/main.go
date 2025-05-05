@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 
 	"bunny/hops"
 
@@ -120,6 +121,7 @@ func annotateRes(annots map[string]string, res *client.Result) (*client.Result, 
 		},
 		Config: ocispecs.ImageConfig{
 			WorkingDir: "/",
+			Cmd:        strings.Fields(annots["com.urunc.unikernel.cmdline"]),
 			Labels:     annots,
 		},
 	}
