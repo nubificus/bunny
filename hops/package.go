@@ -82,7 +82,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 	var framework Framework
 	instr := &PackInstructions{
 		Annots: map[string]string{
-			"com.urunc.unikernel.useDMBlock":    "false",
+			"com.urunc.unikernel.mountRootfs":   "false",
 			"com.urunc.unikernel.unikernelType": h.Platform.Framework,
 			"com.urunc.unikernel.cmdline":       h.Cmd,
 			"com.urunc.unikernel.hypervisor":    h.Platform.Monitor,
@@ -160,7 +160,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 			if !framework.SupportsRootfsType("raw") {
 				return nil, fmt.Errorf("%s does not support raw rootfs type", framework.Name())
 			}
-			instr.Annots["com.urunc.unikernel.useDMBlock"] = "true"
+			instr.Annots["com.urunc.unikernel.mountRootfs"] = "true"
 			// Switch the base to the rootfs's From image
 			// and copy the kernel inside it.
 			if h.Kernel.From != "local" {
@@ -193,7 +193,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 	case "initrd":
 		instr.Annots["com.urunc.unikernel.initrd"] = DefaultRootfsPath
 	case "raw":
-		instr.Annots["com.urunc.unikernel.useDMBlock"] = "true"
+		instr.Annots["com.urunc.unikernel.mountRootfs"] = "true"
 	default:
 		return nil, fmt.Errorf("Unexpected RootfsType value from framework")
 	}
