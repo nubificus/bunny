@@ -101,12 +101,16 @@ func TestUnikraftGetRootfsType(t *testing.T) {
 
 func TestUnikraftSupportsRootfsType(t *testing.T) {
 	unikraft := &UnikraftInfo{}
-	t.Run("Supported rootfs type", func(t *testing.T) {
+	t.Run("Supported rootfs type initrd", func(t *testing.T) {
 		require.Equal(t, true, unikraft.SupportsRootfsType("initrd"))
 
 	})
-	t.Run("Unsupported rootfs type", func(t *testing.T) {
-		require.Equal(t, false, unikraft.SupportsRootfsType("raw"))
+	t.Run("Unsupported rootfs type raw", func(t *testing.T) {
+		require.Equal(t, true, unikraft.SupportsRootfsType("raw"))
+
+	})
+	t.Run("Unsupported rootfs type block", func(t *testing.T) {
+		require.Equal(t, false, unikraft.SupportsRootfsType("block"))
 
 	})
 }

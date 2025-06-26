@@ -53,6 +53,8 @@ func (i *UnikraftInfo) SupportsRootfsType(rootfsType string) bool {
 	switch rootfsType {
 	case "initrd":
 		return true
+	case "raw":
+		return true
 	default:
 		return false
 	}
