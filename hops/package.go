@@ -155,7 +155,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 		// 1) The rootfs is empty and we do not have to do anything
 		// 2) The rootfs is a raw type rootfs
 		// The value that will guide us is the From field
-		if h.Rootfs.From != "scratch" {
+		if h.Rootfs.From != "scratch" && h.Rootfs.From != "" {
 			// We have a raw rootfs
 			if !framework.SupportsRootfsType("raw") {
 				return nil, fmt.Errorf("%s does not support raw rootfs type", framework.Name())
@@ -189,13 +189,10 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 	if err != nil {
 		return nil, err
 	}
-	switch framework.GetRootfsType() {
-	case "initrd":
+	if framework.GetRootfsType() == "initrd" {
 		instr.Annots["com.urunc.unikernel.initrd"] = DefaultRootfsPath
-	case "raw":
+	} else if framework.GetRootfsType() == "raw" {
 		instr.Annots["com.urunc.unikernel.mountRootfs"] = "true"
-	default:
-		return nil, fmt.Errorf("Unexpected RootfsType value from framework")
 	}
 
 	// Switch the base to the rootfs's From image

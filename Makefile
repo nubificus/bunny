@@ -118,7 +118,7 @@ test: unittest
 
 ## unittest Run all unit tests
 .PHONY: unittest
-unittest: test_validate test_parse test_llb test_unikraft test_generic
+unittest: test_validate test_parse test_pack test_llb test_unikraft test_generic
 
 ## test_llb Run unit tests for hops package regarding LLB state creations
 test_llb:
@@ -142,6 +142,12 @@ test_unikraft:
 test_parse:
 	@echo "Unit testing for files parsing"
 	@GOFLAGS=$(TEST_FLAGS) $(GO) test $(TEST_OPTS) ./hops -run TestParse -v
+	@echo " "
+
+## test_pack Run unit tests for hops package regarding packaging from bunnyfile
+test_pack:
+	@echo "Unit testing for bunnyfile-based image building"
+	@GOFLAGS=$(TEST_FLAGS) $(GO) test $(TEST_OPTS) ./hops -run TestPack -v
 	@echo " "
 
 ## test_validate Run unit tests for hops package regarding input validation
