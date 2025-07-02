@@ -56,6 +56,7 @@ type Hops struct {
 	Rootfs   Rootfs   `yaml:"rootfs"`
 	Kernel   Kernel   `yaml:"kernel"`
 	Cmd      string   `yaml:"cmdline"`
+	Envs     []string `yaml:"envs"`
 }
 
 // A struct to represent a copy operation in the final image
@@ -75,6 +76,8 @@ type PackInstructions struct {
 	Copies []PackCopies
 	// Annotations
 	Annots map[string]string
+	// Environment variables
+	EnvVars []string
 }
 
 // ToPack converts Hops into PackInstructions
@@ -87,6 +90,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 			"com.urunc.unikernel.cmdline":       h.Cmd,
 			"com.urunc.unikernel.hypervisor":    h.Platform.Monitor,
 		},
+		EnvVars: h.Envs,
 	}
 	if h.Platform.Version != "" {
 		instr.Annots["com.urunc.unikernel.unikernelVersion"] = h.Platform.Version

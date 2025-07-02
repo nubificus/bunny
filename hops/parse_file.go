@@ -106,6 +106,12 @@ func ParseContainerfile(fileBytes []byte, buildContext string) (*PackInstruction
 				annotKey := strings.Trim(kvp.Key, "\"")
 				instr.Annots[annotKey] = strings.Trim(kvp.Value, "\"")
 			}
+		case *instructions.EnvCommand:
+			// Handle LABEL annotations
+			for _, kvp := range c.Env {
+				eVar := kvp.Key + "=" + kvp.Value
+				instr.EnvVars = append(instr.EnvVars, eVar)
+			}
 		case instructions.Command:
 			// Catch all other commands
 			return nil, fmt.Errorf("Unsupported command: %s", c.Name())

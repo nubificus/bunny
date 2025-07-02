@@ -105,7 +105,7 @@ func readFileFromLLB(ctx context.Context, c client.Client, filename string) ([]b
 	return fileBytes, nil
 }
 
-func annotateRes(annots map[string]string, res *client.Result) (*client.Result, error) {
+func annotateRes(annots map[string]string, EnvVars []string, res *client.Result) (*client.Result, error) {
 	ref, err := res.SingleRef()
 	if err != nil {
 		return nil, fmt.Errorf("Failed te get reference build result: %v", err)
@@ -122,6 +122,7 @@ func annotateRes(annots map[string]string, res *client.Result) (*client.Result, 
 		Config: ocispecs.ImageConfig{
 			WorkingDir: "/",
 			Cmd:        strings.Fields(annots["com.urunc.unikernel.cmdline"]),
+			Env:        EnvVars,
 			Labels:     annots,
 		},
 	}
@@ -176,7 +177,7 @@ func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) 
 	}
 
 	// Add annotations and Labels in output image
-	result, err = annotateRes(packInst.Annots, result)
+	result, err = annotateRes(packInst.Annots, packInst.EnvVars, result)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to annotate final image: %v", err)
 	}
