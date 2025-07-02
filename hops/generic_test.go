@@ -239,6 +239,41 @@ func TestGenericCreateRootfs(t *testing.T) {
 		toolDgst := tmp.Inputs[0].Digest
 		require.Equal(t, m[toolDgst], arr[0])
 	})
+	t.Run("With raw rootfs type and invalid files structure", func(t *testing.T) {
+		plat := Platform{
+			Version: "1.0",
+			Monitor: "foo",
+			Arch:    "bar",
+		}
+		rootfs := Rootfs{
+			From:     "foo",
+			Path:     "bar",
+			Type:     "initrd",
+			Includes: []string{":bar", "ka"},
+		}
+
+		generic := NewGeneric(plat, rootfs)
+		_, err := generic.CreateRootfs("context")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "Invalid format of the file")
+	})
+	t.Run("Invalid rootfs type", func(t *testing.T) {
+		plat := Platform{
+			Version: "1.0",
+			Monitor: "foo",
+			Arch:    "bar",
+		}
+		rootfs := Rootfs{
+			From:     "foo",
+			Path:     "bar",
+			Type:     "qwe",
+			Includes: []string{"foo:bar", "ka"},
+		}
+
+		generic := NewGeneric(plat, rootfs)
+		_, err := generic.CreateRootfs("context")
+		require.ErrorContains(t, err, "Unsupported rootfs type")
+	})
 }
 
 func TestGenericBuildKernel(t *testing.T) {
