@@ -62,8 +62,12 @@ kernel:                                         # [5] Specify a prebuilt kernel 
   from: local                                   # [5a] Specify the source of a prebuilt kernel.
   path: local                                   # [5b] The path where the kernel image resides.
 
-cmd: ["app"]                                    # [6] The command line arguments of the app
-entrypoint: ["init"]                            # [7] The entrypoint of the container
+envs:                                           # [6] A list with all environment variables
+  - HOME=/home/ubuntu
+
+cmd: ["app"]                                    # [7] The command line arguments of the app
+
+entrypoint: ["init"]                            # [8] The entrypoint of the container
 
 ```
 
@@ -86,8 +90,9 @@ The fields of `bunnyfile` in more details:
 | 5  | Information about a prebuilt kernel | no | - | - |
 | 5a | The location where the prebuilt kernel resides | no | "local", "OCI image" | - |
 | 5b | The path relative to the `from` field where a kernel binary resides | yes, if `from` is set  | "local", "OCI image" | - |
-| 6  | The command line of the application | no | []string | - |
-| 7  | The entrypoint of the container | no | []string | - |
+| 6  | A list of environment variables| no | list of <ENVIRONMENT_VARIABLE>:<VALUE> | - |
+| 7  | The command line of the application | no | []string | - |
+| 8  | The entrypoint of the container | no | []string | - |
 
 ### The `rootfs` field
 

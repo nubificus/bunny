@@ -59,6 +59,7 @@ type Hops struct {
 	Cmdline    string   `yaml:"cmdline"`
 	Cmd        []string `yaml:"cmd"`
 	Entrypoint []string `yaml:"entrypoint"`
+	Envs       []string `yaml:"envs"`
 }
 
 // A struct to represent a copy operation in the final image
@@ -80,6 +81,8 @@ type PackConfig struct {
 	Entrypoint []string
 	// The arguments of the entrypoint
 	Cmd []string
+	// The environment variables set by the user
+	EnVars []string
 }
 
 type PackInstructions struct {
@@ -288,10 +291,11 @@ func (i *PackInstructions) SetAnnotations(p Platform, cmd []string, kernelPath s
 
 // UpdateConfig fills all the information given by the user for the
 // fileds in PackConfig.
-func (i *PackInstructions) UpdateConfig(cmd []string, entryp []string, p Platform) {
+func (i *PackInstructions) UpdateConfig(cmd []string, entryp []string, ev []string, p Platform) {
 	i.Config.Cmd = cmd
 	i.Config.Entrypoint = entryp
 	i.Config.Monitor = p.Monitor
+	i.Config.EnVars = ev
 }
 
 // ToPack converts Hops into PackInstructions
@@ -336,7 +340,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 		return nil, fmt.Errorf("Error setting annotations: %v", err)
 	}
 
-	instr.UpdateConfig(h.Cmd, h.Entrypoint, h.Platform)
+	instr.UpdateConfig(h.Cmd, h.Entrypoint, h.Envs, h.Platform)
 
 	return instr, nil
 }
