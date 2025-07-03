@@ -1,6 +1,6 @@
 # Packaging a Unikraft unikernel with `bunny`
 
-For this example, we will use an existing [Unikraft](unikraft.org) Unikernel
+For this example, we will use an existing [Unikraft](https://unikraft.org/) Unikernel
 image from [Unikraft's catalog](https://github.com/unikraft/catalog), we can
 transform it to an image that [urunc](https://github.com/nubificus/urunc) can
 execute with `bunny`. The respective `Containerfile` that we would use with
@@ -11,9 +11,10 @@ execute with `bunny`. The respective `Containerfile` that we would use with
 FROM unikraft.org/nginx:1.15
 
 LABEL com.urunc.unikernel.binary="/unikraft/bin/kernel"
-LABEL "com.urunc.unikernel.cmdline"="nginx -c /nginx/conf/nginx.conf"
 LABEL "com.urunc.unikernel.unikernelType"="unikraft"
 LABEL "com.urunc.unikernel.hypervisor"="qemu"
+
+CMD ["-c", "/nginx/conf/nginx.conf"]
 ```
 
 In order to use `bunny`, instead, we need to specify the
@@ -33,7 +34,7 @@ kernel:
   from: unikraft.org/nginx:1.15
   path: /unikraft/bin/kernel
 
-cmdline: nginx -c /nginx/conf/nginx.conf
+cmd: ["-c", "/nginx/conf/nginx.conf"]
 ```
 
 ## Building the image with bunny as buildkit's frontend
