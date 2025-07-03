@@ -72,7 +72,7 @@ func (rc *ResultAndConfig) GetBaseConfig(ctx context.Context, c client.Client, r
 	return nil
 }
 
-func (rc *ResultAndConfig) UpdateConfig(annots map[string]string) {
+func (rc *ResultAndConfig) UpdateConfig(annots map[string]string, cmd []string) {
 	plat := ocispecs.Platform{
 		Architecture: runtime.GOARCH,
 		OS:           "linux",
@@ -86,7 +86,7 @@ func (rc *ResultAndConfig) UpdateConfig(annots map[string]string) {
 	rc.OCIConfig.Platform = plat
 	rc.OCIConfig.RootFS = rfs
 	// Overwrite Cmd and entrypoint based on the values of bunnyfile
-	rc.OCIConfig.Config.Cmd = strings.Fields(annots["com.urunc.unikernel.cmdline"])
+	rc.OCIConfig.Config.Cmd = cmd
 	rc.OCIConfig.Config.Entrypoint = []string{}
 
 	if rc.OCIConfig.Config.Labels == nil {
