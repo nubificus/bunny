@@ -60,6 +60,13 @@ func ParseBunnyfile(fileBytes []byte) (*Hops, error) {
 		return nil, err
 	}
 
+	// TODO: Remove this in next release.
+	// Keep backwards compatibility and if cmd is empty, then
+	// use cmdline. Otherwise, the Cmdline is ignored.
+	if len(bunnyHops.Cmd) == 0 {
+		bunnyHops.Cmd = strings.Split(bunnyHops.Cmdline, " ")
+	}
+
 	return bunnyHops, nil
 }
 
@@ -106,6 +113,8 @@ func ParseContainerfile(fileBytes []byte, buildContext string) (*PackInstruction
 				annotKey := strings.Trim(kvp.Key, "\"")
 				instr.Annots[annotKey] = strings.Trim(kvp.Value, "\"")
 			}
+		case *instructions.CmdCommand:
+			instr.Config.Cmd = c.CmdLine
 		case instructions.Command:
 			// Catch all other commands
 			return nil, fmt.Errorf("Unsupported command: %s", c.Name())
@@ -119,6 +128,14 @@ func ParseContainerfile(fileBytes []byte, buildContext string) (*PackInstruction
 	if BaseString != "scratch" && BaseString != "" {
 		instr.Config.BaseRef = BaseString
 		instr.Config.Monitor = instr.Annots["com.urunc.unikernel.hypervisor"]
+	}
+
+	// TODO: Remove this in next release.
+	// Keep backwards compatibility and if the CMD in Containerfile
+	// is not set, then the cmdline annotations will be used for the cmd of
+	// the container image.
+	if len(instr.Config.Cmd) == 0 {
+		instr.Config.Cmd = strings.Split(instr.Annots["com.urunc.unikernel.cmdline"], " ")
 	}
 
 	return instr, nil

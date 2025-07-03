@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"strings"
 
 	"github.com/moby/buildkit/client/llb"
 )
@@ -55,7 +56,8 @@ type Hops struct {
 	Platform Platform `yaml:"platforms"`
 	Rootfs   Rootfs   `yaml:"rootfs"`
 	Kernel   Kernel   `yaml:"kernel"`
-	Cmd      string   `yaml:"cmdline"`
+	Cmdline  string   `yaml:"cmdline"`
+	Cmd      []string `yaml:"cmd"`
 }
 
 // A struct to represent a copy operation in the final image
@@ -76,7 +78,7 @@ type PackConfig struct {
 	// The Entrypoint of the container image
 	Entrypoint []string
 	// The arguments of the entrypoint
-	Cmd string
+	Cmd []string
 }
 
 type PackInstructions struct {
@@ -254,10 +256,10 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 
 // SetAnnotations set all annotations required for urunc.
 // It returns an error if something went wrong
-func (i *PackInstructions) SetAnnotations(p Platform, cmd string, kernelPath string, rootfsPath string, rootfsType string) error {
+func (i *PackInstructions) SetAnnotations(p Platform, cmd []string, kernelPath string, rootfsPath string, rootfsType string) error {
 	// Set basic annotations for urunc's functionality
 	i.Annots["com.urunc.unikernel.unikernelType"] = p.Framework
-	i.Annots["com.urunc.unikernel.cmdline"] = cmd
+	i.Annots["com.urunc.unikernel.cmdline"] = strings.Join(cmd, " ")
 	i.Annots["com.urunc.unikernel.hypervisor"] = p.Monitor
 	i.Annots["com.urunc.unikernel.binary"] = kernelPath
 	// Disable mountRootfs by default and enable it only when rootfs is raw.
@@ -285,7 +287,7 @@ func (i *PackInstructions) SetAnnotations(p Platform, cmd string, kernelPath str
 
 // UpdateConfig fills all the information given by the user for the
 // fileds in PackConfig.
-func (i *PackInstructions) UpdateConfig(cmd string, p Platform) {
+func (i *PackInstructions) UpdateConfig(cmd []string, p Platform) {
 	i.Config.Cmd = cmd
 	i.Config.Monitor = p.Monitor
 }

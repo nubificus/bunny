@@ -177,6 +177,7 @@ cmdline: "foo bar"
 				require.Nil(t, h)
 				require.Contains(t, err.Error(), tc.errorText)
 			} else {
+				// TODO: Update test to check rootfs and cmdline
 				require.NoError(t, err)
 				require.NotNil(t, h)
 			}
