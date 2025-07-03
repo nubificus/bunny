@@ -11,16 +11,18 @@ The respective `Containerfile` that we would use with
 [bima](https://github.com/nubificus/bima) would be:
 
 ```
-#syntax=harbor.nbfc.io/nubificus/pun:latest
+#syntax=harbor.nbfc.io/nubificus/bunny:latest
 FROM scratch
 
 COPY redis.hvt /unikernel/redis.hvt
-COPY redis.conf /conf/redis.conf
+COPY /conf /
 
 LABEL com.urunc.unikernel.binary=/unikernel/redis.hvt
-LABEL "com.urunc.unikernel.cmdline"="redis-server /data/conf/redis.conf"
 LABEL "com.urunc.unikernel.unikernelType"="rumprun"
 LABEL "com.urunc.unikernel.hypervisor"="hvt"
+LABEL "com.urunc.unikernel.mountRootfs"="true"
+
+CMD ["redis-server", "/data/conf/redis.conf"]
 ```
 
 In order to use `bunny`, instead, we need to specify the
@@ -40,13 +42,13 @@ rootfs:
   from: scratch
   type: raw
   include:
-  - redis.conf:/data/conf/redis.conf
+  - conf/:/conf
 
 kernel:
   from: local
   path: redis.hvt
 
-cmdline: "redis-server /data/conf/redis.conf"
+cmd: ["redis-server", "/data/conf/redis.conf"]
 ```
 
 > **NOTE**: Since we use the raw type for rootfs, all the files in the include list

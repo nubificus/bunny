@@ -1,7 +1,7 @@
 # Creating the initrd and packaging a Unikraft unikernel with `bunny`
 
 For this example, we will use the [C HTTP Web
-Server](https://github.com/unikraft/catalog/tree/main/examples/http-c) example
+Server](https://github.com/unikraft/catalog/tree/main/examples/httpserver-gcc13.2) example
 in Unikraft's catalog. To build the unikernel, we mainly need to:
 1. Build the C HTTP server
 2. Create the initrd for Unikraft
@@ -52,10 +52,14 @@ To package everything together, we can use the following `Containerfile`:
 #syntax=harbor.nbfc.io/nubificus/bunny:latest
 FROM unikraft.org/base:latest
 
+COPY rootfs.cpio /rootfs.cpio
+
 LABEL com.urunc.unikernel.binary="/unikraft/bin/kernel"
-LABEL "com.urunc.unikernel.cmdline"="/chttp"
+LABEL "com.urunc.unikernel.initrd"="/rootfs.cpio"
 LABEL "com.urunc.unikernel.unikernelType"="unikraft"
 LABEL "com.urunc.unikernel.hypervisor"="qemu"
+
+CMD ["/chttp"]
 ```
 
 ## Using a `bunnyfile`
@@ -84,7 +88,7 @@ kernel:
   from: unikraft.org/base:latest
   path: /unikraft/bin/kernel
 
-cmdline: /chttp
+cmd: ["/chttp"]
 ```
 
 With the above bunnyfile`, `bunny` will build the rootfs of Unikraft as a cpio

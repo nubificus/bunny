@@ -62,7 +62,7 @@ kernel:                                         # [5] Specify a prebuilt kernel 
   from: local                                   # [5a] Specify the source of a prebuilt kernel.
   path: local                                   # [5b] The path where the kernel image resides.
 
-cmdline: hello                                  # [6] The cmdline of the app.
+cmd: ["hello"]                                  # [6] The command line arguments of the app.
 
 ```
 
@@ -178,7 +178,7 @@ kernel:
   from: local
   path: kernel
 
-cmdline: /server
+cmd: ["/server"]
 ```
 
 We can then package everything with the following command:
@@ -193,7 +193,7 @@ The above `bunnyfile` will perform the following steps:
 2. Copy the file `kernel` from the local build context to the OCI image we used
    in the previous step at `/boot/kernel`.
 3. Set up [`urunc`'s annotations](https://urunc.io/image-building/#annotations)
-   using all the information in the file (e.g. framework, version, cmdline,
+   using all the information in the file (e.g. framework, version, cmd,
    binary, initrd).
 4. Produce the final OCI image.
 
