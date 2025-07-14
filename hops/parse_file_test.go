@@ -304,7 +304,13 @@ LABEL bar=foo
 		require.Equal(t, "foo", i.Annots["bar"])
 		require.Len(t, i.Copies, 0)
 	})
-
+	t.Run("Invalid empty Containerfile", func(t *testing.T) {
+		input := []byte("")
+		i, err := ParseContainerfile(input, "foo")
+		require.Error(t, err)
+		require.Nil(t, i)
+		require.ErrorContains(t, err, "Failed to parse data as Dockerfile")
+	})
 }
 
 func TestParsefile(t *testing.T) {
@@ -397,6 +403,12 @@ cmdline: "foo bar"
 `),
 			expectError: true,
 			errorText:   "The framework field of platforms is necessary",
+		},
+		{
+			name:        "Invalid file single line",
+			input:       []byte(`#syntax=foo`),
+			expectError: true,
+			errorText:   "Invalid format of file",
 		},
 	}
 
