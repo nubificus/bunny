@@ -115,6 +115,11 @@ func ParseContainerfile(fileBytes []byte, buildContext string) (*PackInstruction
 
 	}
 	instr.Base = GetSourceState(BaseString, instr.Annots["com.urunc.unikernel.hypervisor"])
+	// TODO This check also takes place in GetSourceState, so we should merge them
+	if BaseString != "scratch" && BaseString != "" {
+		instr.Config.BaseRef = BaseString
+		instr.Config.Monitor = instr.Annots["com.urunc.unikernel.hypervisor"]
+	}
 
 	return instr, nil
 }

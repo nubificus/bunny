@@ -68,6 +68,17 @@ type PackCopies struct {
 	DstPath string
 }
 
+type PackConfig struct {
+	// The reference of the final base image
+	BaseRef string
+	// The monitor on top of the guest will execute
+	Monitor string
+	// The Entrypoint of the container image
+	Entrypoint []string
+	// The arguments of the entrypoint
+	Cmd string
+}
+
 type PackInstructions struct {
 	// The Base image to use
 	Base llb.State
@@ -75,6 +86,8 @@ type PackInstructions struct {
 	Copies []PackCopies
 	// Annotations
 	Annots map[string]string
+	// Important information for the configuration of the final image
+	Config PackConfig
 }
 
 type PackEntry struct {
@@ -178,9 +191,11 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 		i.Copies = append(i.Copies,
 			makeCopy(*kEntry, DefaultKernelPath))
 		i.Base = llb.Scratch()
+		i.Config.BaseRef = ""
 		kernelCopy = true
 	default:
 		i.Base = kEntry.SourceState
+		i.Config.BaseRef = kEntry.SourceRef
 	}
 
 	rootfsCopy := false
@@ -196,6 +211,7 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 			rootfsCopy = true
 		} else {
 			i.Base = rEntry.SourceState
+			i.Config.BaseRef = rEntry.SourceRef
 		}
 	case "local":
 		i.Copies = append(i.Copies,
@@ -203,6 +219,7 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 		rootfsCopy = true
 	default:
 		i.Base = rEntry.SourceState
+		i.Config.BaseRef = rEntry.SourceRef
 	}
 
 	// There are cases where both kernel and rootfs come from an existing
@@ -266,6 +283,13 @@ func (i *PackInstructions) SetAnnotations(p Platform, cmd string, kernelPath str
 	return nil
 }
 
+// UpdateConfig fills all the information given by the user for the
+// fileds in PackConfig.
+func (i *PackInstructions) UpdateConfig(cmd string, p Platform) {
+	i.Config.Cmd = cmd
+	i.Config.Monitor = p.Monitor
+}
+
 // ToPack converts Hops into PackInstructions
 func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 	var framework Framework
@@ -307,6 +331,8 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Error setting annotations: %v", err)
 	}
+
+	instr.UpdateConfig(h.Cmd, h.Platform)
 
 	return instr, nil
 }
