@@ -16,21 +16,16 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
-	"runtime"
-	"strings"
 
 	"bunny/hops"
 
 	"github.com/moby/buildkit/client/llb"
-	"github.com/moby/buildkit/exporter/containerimage/exptypes"
 	"github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/frontend/gateway/grpcclient"
 	"github.com/moby/buildkit/util/appcontext"
-	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 const (
@@ -105,40 +100,6 @@ func readFileFromLLB(ctx context.Context, c client.Client, filename string) ([]b
 	return fileBytes, nil
 }
 
-func annotateRes(annots map[string]string, res *client.Result) (*client.Result, error) {
-	ref, err := res.SingleRef()
-	if err != nil {
-		return nil, fmt.Errorf("Failed te get reference build result: %v", err)
-	}
-
-	config := ocispecs.Image{
-		Platform: ocispecs.Platform{
-			Architecture: runtime.GOARCH,
-			OS:           "linux",
-		},
-		RootFS: ocispecs.RootFS{
-			Type: "layers",
-		},
-		Config: ocispecs.ImageConfig{
-			WorkingDir: "/",
-			Cmd:        strings.Fields(annots["com.urunc.unikernel.cmdline"]),
-			Labels:     annots,
-		},
-	}
-
-	imageConfig, err := json.Marshal(config)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to marshal image config: %v", err)
-	}
-	res.AddMeta(exptypes.ExporterImageConfigKey, imageConfig)
-	for annot, val := range annots {
-		res.AddMeta(exptypes.AnnotationManifestKey(nil, annot), []byte(val))
-	}
-	res.SetRef(ref)
-
-	return res, nil
-}
-
 func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) {
 	// Get the Build options from buildkit
 	buildOpts := c.BuildOpts().Opts
@@ -167,21 +128,33 @@ func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) 
 		return nil, fmt.Errorf("Could not create LLB definition: %v", err)
 	}
 
+	rc := &hops.ResultAndConfig{}
+
 	// Pass LLB to buildkit
-	result, err := c.Solve(ctx, client.SolveRequest{
+	rc.Res, err = c.Solve(ctx, client.SolveRequest{
 		Definition: dt.ToPB(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("Failed to resolve LLB: %v", err)
 	}
 
-	// Add annotations and Labels in output image
-	result, err = annotateRes(packInst.Annots, result)
+	// Get the OCI Image config of the base Image if there is any
+	err = rc.GetBaseConfig(ctx, c, packInst.Config.BaseRef, packInst.Config.Monitor)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get OCI config of base image: %v", err)
+	}
+
+	// Set some default values in the Image config
+	// and add cmdline and Labels
+	rc.UpdateConfig(packInst.Annots)
+
+	// Apply annotations and the new config to the solver's result
+	err = rc.ApplyConfig(packInst.Annots)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to annotate final image: %v", err)
 	}
 
-	return result, nil
+	return rc.Res, nil
 }
 
 func main() {
