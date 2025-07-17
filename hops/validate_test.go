@@ -167,6 +167,24 @@ func TestValidateBunnyfileRootfs(t *testing.T) {
 			errorText:   "The from field of rootfs can not be empty",
 		},
 		{
+			name:        "Invalid non-empty path, type raw",
+			input:       "local/path/raw/",
+			expectError: true,
+			errorText:   "The path field in rootfs can not be combined",
+		},
+		{
+			name:        "Invalid from local with type raw",
+			input:       "local//raw/",
+			expectError: true,
+			errorText:   "If type of rootfs is raw, then from can not",
+		},
+		{
+			name:        "Invalid from local with includes",
+			input:       "local/path//foo:bar",
+			expectError: true,
+			errorText:   "Adding files to an existing rootfs is not yet",
+		},
+		{
 			name:        "Invalid include with no source",
 			input:       "///:bar",
 			expectError: true,
