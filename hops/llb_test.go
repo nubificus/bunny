@@ -258,7 +258,7 @@ func TestLLBCopy(t *testing.T) {
 
 func TestLLBBase(t *testing.T) {
 	t.Run("From scratch", func(t *testing.T) {
-		state := BaseLLB("scratch", "")
+		state := GetSourceState("scratch", "")
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)
@@ -266,7 +266,7 @@ func TestLLBBase(t *testing.T) {
 		require.Equal(t, 0, len(arr))
 	})
 	t.Run("From scratch and monitor", func(t *testing.T) {
-		state := BaseLLB("scratch", "foo")
+		state := GetSourceState("scratch", "foo")
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)
@@ -274,7 +274,7 @@ func TestLLBBase(t *testing.T) {
 		require.Equal(t, 0, len(arr))
 	})
 	t.Run("From unikraft and qemu", func(t *testing.T) {
-		state := BaseLLB("unikraft.org/foo", "qemu")
+		state := GetSourceState("unikraft.org/foo", "qemu")
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)
@@ -288,7 +288,7 @@ func TestLLBBase(t *testing.T) {
 		require.Equal(t, "qemu", p.OS)
 	})
 	t.Run("From unikraft and firecracker", func(t *testing.T) {
-		state := BaseLLB("unikraft.org/foo", "firecracker")
+		state := GetSourceState("unikraft.org/foo", "firecracker")
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)
@@ -302,7 +302,7 @@ func TestLLBBase(t *testing.T) {
 		require.Equal(t, "fc", p.OS)
 	})
 	t.Run("From foo", func(t *testing.T) {
-		state := BaseLLB("foo", "")
+		state := GetSourceState("foo", "")
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)
@@ -316,7 +316,7 @@ func TestLLBBase(t *testing.T) {
 		require.Equal(t, "linux", p.OS)
 	})
 	t.Run("From foo and monitor", func(t *testing.T) {
-		state := BaseLLB("foo", "bar")
+		state := GetSourceState("foo", "bar")
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)
