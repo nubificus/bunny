@@ -82,21 +82,23 @@ func CopyLLB(to llb.State, from PackCopies) llb.State {
 	return copyState
 }
 
-// Set the base image where we will pack the unikernel
-func BaseLLB(inputBase string, monitor string) llb.State {
+// Set the source llb state from the sourceRef image and also set
+// the appropriate platform for unikraft images.
+func GetSourceState(sourceRef string, monitor string) llb.State {
 	if monitor == "firecracker" {
 		monitor = "fc"
 	}
-	if inputBase == "scratch" {
+	if sourceRef == "scratch" {
 		return llb.Scratch()
 	}
-	if strings.HasPrefix(inputBase, unikraftHub) {
+	if strings.HasPrefix(sourceRef, unikraftHub) {
 		// Define the platform to qemu/amd64 so we can pull unikraft images
 		platform := ocispecs.Platform{
 			OS:           monitor,
 			Architecture: runtime.GOARCH,
 		}
-		return llb.Image(inputBase, llb.Platform(platform))
+		return llb.Image(sourceRef, llb.Platform(platform))
 	}
-	return llb.Image(inputBase)
+
+	return llb.Image(sourceRef)
 }
