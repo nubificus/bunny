@@ -52,12 +52,13 @@ type Kernel struct {
 }
 
 type Hops struct {
-	Version  string   `yaml:"version"`
-	Platform Platform `yaml:"platforms"`
-	Rootfs   Rootfs   `yaml:"rootfs"`
-	Kernel   Kernel   `yaml:"kernel"`
-	Cmdline  string   `yaml:"cmdline"`
-	Cmd      []string `yaml:"cmd"`
+	Version    string   `yaml:"version"`
+	Platform   Platform `yaml:"platforms"`
+	Rootfs     Rootfs   `yaml:"rootfs"`
+	Kernel     Kernel   `yaml:"kernel"`
+	Cmdline    string   `yaml:"cmdline"`
+	Cmd        []string `yaml:"cmd"`
+	Entrypoint []string `yaml:"entrypoint"`
 }
 
 // A struct to represent a copy operation in the final image
@@ -287,8 +288,9 @@ func (i *PackInstructions) SetAnnotations(p Platform, cmd []string, kernelPath s
 
 // UpdateConfig fills all the information given by the user for the
 // fileds in PackConfig.
-func (i *PackInstructions) UpdateConfig(cmd []string, p Platform) {
+func (i *PackInstructions) UpdateConfig(cmd []string, entryp []string, p Platform) {
 	i.Config.Cmd = cmd
+	i.Config.Entrypoint = entryp
 	i.Config.Monitor = p.Monitor
 }
 
@@ -334,7 +336,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 		return nil, fmt.Errorf("Error setting annotations: %v", err)
 	}
 
-	instr.UpdateConfig(h.Cmd, h.Platform)
+	instr.UpdateConfig(h.Cmd, h.Entrypoint, h.Platform)
 
 	return instr, nil
 }

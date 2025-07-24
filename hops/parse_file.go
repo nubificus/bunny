@@ -115,6 +115,8 @@ func ParseContainerfile(fileBytes []byte, buildContext string) (*PackInstruction
 			}
 		case *instructions.CmdCommand:
 			instr.Config.Cmd = c.CmdLine
+		case *instructions.EntrypointCommand:
+			instr.Config.Entrypoint = c.CmdLine
 		case instructions.Command:
 			// Catch all other commands
 			return nil, fmt.Errorf("Unsupported command: %s", c.Name())
