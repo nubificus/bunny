@@ -103,7 +103,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 		kernelCopy.DstPath = DefaultKernelPath
 		instr.Copies = append(instr.Copies, kernelCopy)
 	} else {
-		instr.Base = BaseLLB(h.Kernel.From, h.Platform.Monitor)
+		instr.Base = GetSourceState(h.Kernel.From, h.Platform.Monitor)
 		instr.Annots["com.urunc.unikernel.binary"] = h.Kernel.Path
 	}
 
@@ -171,7 +171,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 				instr.Copies = append(instr.Copies, kernelCopy)
 				instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
 			}
-			instr.Base = BaseLLB(h.Rootfs.From, "")
+			instr.Base = GetSourceState(h.Rootfs.From, "")
 		}
 
 		// If the from and include field of rootfs is empty, we do
