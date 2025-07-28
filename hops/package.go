@@ -92,7 +92,7 @@ func handleKernel(_ Framework, buildContext string, mon string, k Kernel) (*Pack
 		entry.SourceState = GetSourceState(k.From, mon)
 	}
 	entry.FilePath = k.Path
-	
+
 	return entry, nil
 }
 
@@ -153,20 +153,118 @@ func makeCopy(entry PackEntry, dst string) PackCopies {
 	}
 }
 
+// SetBaseAndGetPaths sets the base llb.State between kernel state
+// and rootfs entry. It also copies the necessary files from non-base
+// state. It returns the path to the kernel and rootfs (if exists) files
+// or an error if something went wrong.
+func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEntry) (string, string, error) {
+	// The goal is to merge both with minimal file copies.
+	// Typically, we prefer to use the state that already contains one or more
+	// of the required files (i.e., when fetched remotely) to avoid unnecessary
+	// copying.
+	//
+	// When both kernel and rootfs are from remote sources,
+	// we default to using the kernel as the base to preserve its image configuration.
+	//
+	// However, if the rootfs is of type "raw", we instead use it as the base,
+	// since doing so minimizes copies in that scenario.
+	kPath := ""
+	rPath := ""
+	kernelCopy := false
+	switch kEntry.SourceRef {
+	case "":
+		return "", "", fmt.Errorf("Source of kernel State is empty")
+	case "local":
+		i.Copies = append(i.Copies,
+			makeCopy(*kEntry, DefaultKernelPath))
+		i.Base = llb.Scratch()
+		kernelCopy = true
+	default:
+		i.Base = kEntry.SourceState
+	}
+
+	rootfsCopy := false
+	switch rEntry.SourceRef {
+	case "", "scratch":
+		if rEntry.FilePath != "" {
+			i.Copies = append(i.Copies,
+				makeCopy(*rEntry, DefaultRootfsPath))
+			rootfsCopy = true
+		} else {
+			i.Base = rEntry.SourceState
+		}
+	case "local":
+		i.Copies = append(i.Copies,
+			makeCopy(*rEntry, DefaultRootfsPath))
+		rootfsCopy = true
+	default:
+		i.Base = rEntry.SourceState
+	}
+
+	// There are cases where both kernel and rootfs come from an existing
+	// State (e.g. remote or scratch). In these scenarios, the base changes
+	// to the rootfs state and hence we need to add a new copy for the kernel
+	if !rootfsCopy && !kernelCopy {
+		i.Copies = append(i.Copies,
+			makeCopy(*kEntry, DefaultKernelPath))
+		kernelCopy = true
+	}
+
+	if kernelCopy {
+		// We had to copy the kernel and hence the path will
+		// always be DefaultKernelPath
+		kPath = DefaultKernelPath
+	} else {
+		// We did not have to copy the kernel
+		kPath = kEntry.FilePath
+	}
+
+	if rootfsCopy {
+		// We had to copy the rootfs and hence the path will
+		// always be DefaultRootfsPath
+		rPath = DefaultRootfsPath
+	} else {
+		// We did not have to copy the rootfs
+		rPath = rEntry.FilePath
+	}
+
+	return kPath, rPath, nil
+}
+
+// SetAnnotations set all annotations required for urunc.
+// It returns an error if something went wrong
+func (i *PackInstructions) SetAnnotations(p Platform, cmd string, kernelPath string, rootfsPath string, rootfsType string) error {
+	// Set basic annotations for urunc's functionality
+	i.Annots["com.urunc.unikernel.unikernelType"] = p.Framework
+	i.Annots["com.urunc.unikernel.cmdline"] = cmd
+	i.Annots["com.urunc.unikernel.hypervisor"] = p.Monitor
+	i.Annots["com.urunc.unikernel.binary"] = kernelPath
+	// Disable mountRootfs by default and enable it only when rootfs is raw.
+	i.Annots["com.urunc.unikernel.mountRootfs"] = "false"
+
+	if p.Version != "" {
+		i.Annots["com.urunc.unikernel.unikernelVersion"] = p.Version
+	}
+
+	// Depending on the rootfs type, set the respective annotations
+	switch rootfsType {
+	case "initrd":
+		i.Annots["com.urunc.unikernel.initrd"] = rootfsPath
+	case "raw":
+		i.Annots["com.urunc.unikernel.mountRootfs"] = "true"
+	default:
+		return fmt.Errorf("Unexpected RootfsType value %s", rootfsType)
+	}
+	// TODO: Add block-specific annotations
+
+	return nil
+}
+
 // ToPack converts Hops into PackInstructions
 func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 	var framework Framework
-
 	instr := &PackInstructions{
-		Annots: map[string]string{
-			"com.urunc.unikernel.mountRootfs":   "false",
-			"com.urunc.unikernel.unikernelType": h.Platform.Framework,
-			"com.urunc.unikernel.cmdline":       h.Cmd,
-			"com.urunc.unikernel.hypervisor":    h.Platform.Monitor,
-		},
-	}
-	if h.Platform.Version != "" {
-		instr.Annots["com.urunc.unikernel.unikernelVersion"] = h.Platform.Version
+		Annots: map[string]string{},
 	}
 
 	// Get the framework and call the respective function to create the
@@ -178,79 +276,24 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 		framework = NewGeneric(h.Platform, h.Rootfs)
 	}
 
-	kernelEntry, err := handleKernel(framework, buildContext, h.Platform. Monitor, h.Kernel)
+	kernelEntry, err := handleKernel(framework, buildContext, h.Platform.Monitor, h.Kernel)
 	if err != nil {
 		return nil, fmt.Errorf("Error handling kernel entry: %v", err)
 	}
 
-	rootfsEntry, err := handleKernel(framework, buildContext, h.Platform. Monitor, h.Kernel)
+	rootfsEntry, err := handleRootfs(framework, buildContext, h.Platform.Monitor, h.Rootfs)
 	if err != nil {
 		return nil, fmt.Errorf("Error handling rootfs entry: %v", err)
 	}
 
-	// Select which state (kernel or rootfs) will serve as the base for
-	// the final image. The goal is to merge both with minimal file copies.
-	// Typically, we prefer to use the state that already contains one or more
-	// of the required files (i.e., when fetched remotely) to avoid unnecessary
-	// copying.
-	//
-	// When both kernel and rootfs are from remote sources,
-	// we default to using the kernel as the base to preserve its image configuration.
-	//
-	// However, if the rootfs is of type "raw", we instead use it as the base,
-	// since doing so minimizes copies in that scenario.
-
-	kernelCopy := false
-	switch kernelEntry.SourceRef {
-	case "":
-		return nil, fmt.Errorf("Source of kernel State is empty")
-	case "local":
-		instr.Copies = append(instr.Copies,
-			makeCopy(*kernelEntry, DefaultKernelPath))
-		instr.Base = llb.Scratch()
-		kernelCopy = true
-	default:
-		instr.Base = rootfsEntry.SourceState
+	kPath, rPath, err := instr.SetBaseAndGetPaths(kernelEntry, rootfsEntry)
+	if err != nil {
+		return nil, fmt.Errorf("Error choosing base state: %v", err)
 	}
 
-	rootfsCopy := false
-	switch rootfsEntry.SourceRef {
-	case "":
-		// The rootfs entry is empty, no need to do anything
-	case "local":
-		instr.Copies = append(instr.Copies,
-			makeCopy(*rootfsEntry, DefaultRootfsPath))
-		rootfsCopy = true
-	default:
-		instr.Base = rootfsEntry.SourceState
-	}
-
-	if !rootfsCopy && !kernelCopy {
-		instr.Copies = append(instr.Copies,
-			makeCopy(*kernelEntry, DefaultKernelPath))
-		kernelCopy = true
-	}
-
-	if kernelCopy {
-		// We had to copy the kernel and hence the path will
-		// always be DefaultKernelPath
-		instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
-	} else {
-		// We did not have to copy the kernel
-		instr.Annots["com.urunc.unikernel.binary"] = kernelEntry.FilePath
-	}
-
-	switch framework.GetRootfsType() {
-	case "initrd":
-		if rootfsCopy {
-			instr.Annots["com.urunc.unikernel.initrd"] = DefaultRootfsPath
-		} else {
-			instr.Annots["com.urunc.unikernel.initrd"] = rootfsEntry.FilePath
-		}
-	case "raw":
-		instr.Annots["com.urunc.unikernel.mountRootfs"] = "true"
-	default:
-		return nil, fmt.Errorf("Unexpected RootfsType value %s", framework.GetRootfsType())
+	err = instr.SetAnnotations(h.Platform, h.Cmd, kPath, rPath, framework.GetRootfsType())
+	if err != nil {
+		return nil, fmt.Errorf("Error setting annotations: %v", err)
 	}
 
 	return instr, nil
