@@ -84,7 +84,7 @@ type PackEntry struct {
 }
 
 func handleKernel(_ Framework, buildContext string, mon string, k Kernel) (*PackEntry, error) {
-	var entry *PackEntry
+	entry := &PackEntry{}
 	entry.SourceRef = k.From
 	if k.From == "local" {
 		entry.SourceState = llb.Local(buildContext)
@@ -97,7 +97,7 @@ func handleKernel(_ Framework, buildContext string, mon string, k Kernel) (*Pack
 }
 
 func handleRootfs(f Framework, buildContext string, mon string, r Rootfs) (*PackEntry, error) {
-	var entry *PackEntry
+	entry := &PackEntry{}
 
 	// Make sure that the specified rootfs type is supported
 	// from the framework.
@@ -185,7 +185,11 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 
 	rootfsCopy := false
 	switch rEntry.SourceRef {
-	case "", "scratch":
+	case "":
+		// If SourceRef of rootfs is empty, it means
+		// the user did not specify any rootfs field.
+		// no-op
+	case "scratch":
 		if rEntry.FilePath != "" {
 			i.Copies = append(i.Copies,
 				makeCopy(*rEntry, DefaultRootfsPath))
@@ -204,7 +208,7 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 	// There are cases where both kernel and rootfs come from an existing
 	// State (e.g. remote or scratch). In these scenarios, the base changes
 	// to the rootfs state and hence we need to add a new copy for the kernel
-	if !rootfsCopy && !kernelCopy {
+	if !rootfsCopy && !kernelCopy && rEntry.SourceRef != "" {
 		i.Copies = append(i.Copies,
 			makeCopy(*kEntry, DefaultKernelPath))
 		kernelCopy = true
