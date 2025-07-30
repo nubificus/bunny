@@ -250,8 +250,16 @@ func (i *PackInstructions) SetAnnotations(p Platform, cmd string, kernelPath str
 		i.Annots["com.urunc.unikernel.unikernelVersion"] = p.Version
 	}
 
+	if rootfsPath == "" {
+		// We do not have a rootfs, so no reason to set
+		// rootfs annotations
+		return nil
+	}
+
 	// Depending on the rootfs type, set the respective annotations
 	switch rootfsType {
+	case "":
+		// no-op
 	case "initrd":
 		i.Annots["com.urunc.unikernel.initrd"] = rootfsPath
 	case "raw":

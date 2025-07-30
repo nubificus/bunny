@@ -258,7 +258,7 @@ func TestPackToPack(t *testing.T) {
 		_, arr := parseDef(t, def.Def)
 		require.Equal(t, 0, len(arr))
 	})
-	t.Run("Kernel local rootfs remote type initrd ", func(t *testing.T) {
+	t.Run("Kernel local rootfs remote type initrd", func(t *testing.T) {
 		hops := &Hops{
 			Platform: Platform{
 				Framework: "linux",
@@ -283,11 +283,11 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
 		require.Equal(t, hops.Cmd, i.Annots["com.urunc.unikernel.cmdline"])
 		require.Equal(t, DefaultKernelPath, i.Annots["com.urunc.unikernel.binary"])
-		require.Equal(t, DefaultRootfsPath, i.Annots["com.urunc.unikernel.initrd"])
+		require.Equal(t, hops.Rootfs.Path, i.Annots["com.urunc.unikernel.initrd"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.unikernelVersion"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.blkMntPoint"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.block"])
-		require.Equal(t, 2, len(i.Copies))
+		require.Equal(t, 1, len(i.Copies))
 		kc := i.Copies[0]
 		require.Equal(t, DefaultKernelPath, kc.DstPath)
 		require.Equal(t, hops.Kernel.Path, kc.SrcPath)
@@ -499,7 +499,7 @@ func TestPackToPack(t *testing.T) {
 		s := arr[0].Op.(*pb.Op_Source).Source
 		require.Equal(t, "docker-image://harbor.nbfc.io/foo:latest", s.Identifier)
 	})
-	t.Run("Kernel remote rootfs remote type initrd ", func(t *testing.T) {
+	t.Run("Kernel remote rootfs remote type initrd", func(t *testing.T) {
 		hops := &Hops{
 			Platform: Platform{
 				Framework: "linux",

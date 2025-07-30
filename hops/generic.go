@@ -32,7 +32,7 @@ type GenericInfo struct {
 }
 
 func NewGeneric(plat Platform, rfs Rootfs) *GenericInfo {
-	if rfs.Type == "" {
+	if rfs.Type == "" && rfs.Path == "" {
 		rfs.Type = "raw"
 	}
 	return &GenericInfo{
