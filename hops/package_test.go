@@ -297,19 +297,12 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, 2, len(kcArr))
 		kcs := kcArr[0].Op.(*pb.Op_Source).Source
 		require.Equal(t, "local://context", kcs.Identifier)
-		rc := i.Copies[1]
-		require.Equal(t, DefaultRootfsPath, rc.DstPath)
-		require.Equal(t, hops.Rootfs.Path, rc.SrcPath)
-		rcDef, err := rc.SrcState.Marshal(context.TODO())
-		require.NoError(t, err)
-		_, rcArr := parseDef(t, rcDef.Def)
-		require.Equal(t, 2, len(rcArr))
-		rcs := rcArr[0].Op.(*pb.Op_Source).Source
-		require.Equal(t, "docker-image://harbor.nbfc.io/foo:latest", rcs.Identifier)
 		def, err := i.Base.Marshal(context.TODO())
 		require.NoError(t, err)
 		_, arr := parseDef(t, def.Def)
-		require.Equal(t, 0, len(arr))
+		require.Equal(t, 2, len(arr))
+		sb := arr[0].Op.(*pb.Op_Source).Source
+		require.Equal(t, "docker-image://harbor.nbfc.io/foo:latest", sb.Identifier)
 	})
 	// nolint: dupl
 	t.Run("Kernel local rootfs remote type none implies raw ", func(t *testing.T) {
