@@ -305,7 +305,7 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, "docker-image://harbor.nbfc.io/foo:latest", sb.Identifier)
 	})
 	// nolint: dupl
-	t.Run("Kernel local rootfs remote type none implies raw ", func(t *testing.T) {
+	t.Run("Kernel local rootfs remote type none implies raw", func(t *testing.T) {
 		hops := &Hops{
 			Platform: Platform{
 				Framework: "linux",
