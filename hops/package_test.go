@@ -100,58 +100,6 @@ func TestPackToPack(t *testing.T) {
 		s := arr[0].Op.(*pb.Op_Source).Source
 		require.Equal(t, "docker-image://harbor.nbfc.io/foo:latest", s.Identifier)
 	})
-	t.Run("Kernel local rootfs local initrd type none", func(t *testing.T) {
-		hops := &Hops{
-			Platform: Platform{
-				Framework: "linux",
-				Monitor:   "qemu",
-			},
-			Kernel: Kernel{
-				From: "local",
-				Path: "kernel",
-			},
-			Rootfs: Rootfs{
-				From: "local",
-				Path: "rootfs",
-			},
-			Cmd: "cmd",
-		}
-		i, err := ToPack(hops, "context")
-		require.NoError(t, err)
-		require.NotNil(t, i)
-		require.Equal(t, "false", i.Annots["com.urunc.unikernel.mountRootfs"])
-		require.Equal(t, hops.Platform.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
-		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
-		require.Equal(t, hops.Cmd, i.Annots["com.urunc.unikernel.cmdline"])
-		require.Equal(t, DefaultKernelPath, i.Annots["com.urunc.unikernel.binary"])
-		require.Empty(t, i.Annots["com.urunc.unikernel.initrd"])
-		require.Empty(t, i.Annots["com.urunc.unikernel.unikernelVersion"])
-		require.Empty(t, i.Annots["com.urunc.unikernel.blkMntPoint"])
-		require.Empty(t, i.Annots["com.urunc.unikernel.block"])
-		require.Equal(t, 2, len(i.Copies))
-		kc := i.Copies[0]
-		require.Equal(t, DefaultKernelPath, kc.DstPath)
-		require.Equal(t, hops.Kernel.Path, kc.SrcPath)
-		kcDef, err := kc.SrcState.Marshal(context.TODO())
-		require.NoError(t, err)
-		_, kcArr := parseDef(t, kcDef.Def)
-		require.Equal(t, 2, len(kcArr))
-		kcs := kcArr[0].Op.(*pb.Op_Source).Source
-		require.Equal(t, "local://context", kcs.Identifier)
-		rc := i.Copies[1]
-		require.Equal(t, DefaultRootfsPath, rc.DstPath)
-		require.Equal(t, hops.Rootfs.Path, rc.SrcPath)
-		rcDef, err := rc.SrcState.Marshal(context.TODO())
-		require.NoError(t, err)
-		_, rcArr := parseDef(t, rcDef.Def)
-		require.Equal(t, 2, len(rcArr))
-		rcs := rcArr[0].Op.(*pb.Op_Source).Source
-		require.Equal(t, "local://context", rcs.Identifier)
-		def, err := i.Base.Marshal(context.TODO())
-		require.NoError(t, err)
-		_, arr := parseDef(t, def.Def)
-		require.Equal(t, 0, len(arr))
-	})
 	t.Run("Kernel local rootfs local initrd type none implies initrd", func(t *testing.T) {
 		hops := &Hops{
 			Platform: Platform{
@@ -377,7 +325,7 @@ func TestPackToPack(t *testing.T) {
 		require.Empty(t, i.Annots["com.urunc.unikernel.unikernelVersion"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.blkMntPoint"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.block"])
-		require.Equal(t, 1, len(i.Copies))
+		require.Equal(t, 2, len(i.Copies))
 		kc := i.Copies[0]
 		require.Equal(t, DefaultKernelPath, kc.DstPath)
 		require.Equal(t, hops.Kernel.Path, kc.SrcPath)
@@ -387,17 +335,24 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, 2, len(kcArr))
 		kcs := kcArr[0].Op.(*pb.Op_Source).Source
 		require.Equal(t, "local://context", kcs.Identifier)
-		def, err := i.Base.Marshal(context.TODO())
-		require.NoError(t, err)
-		m, arr := parseDef(t, def.Def)
+                rc := i.Copies[1]
+                require.Equal(t, DefaultRootfsPath, rc.DstPath)
+                require.Equal(t, DefaultRootfsPath, rc.SrcPath)
+                rcDef, err := rc.SrcState.Marshal(context.TODO())
+                require.NoError(t, err)
+                rm, rcArr := parseDef(t, rcDef.Def)
 		// It should the same as TestUnikraftCreateRootfs
-		require.Equal(t, 7, len(arr))
-		last := arr[len(arr)-1]
+		require.Equal(t, 7, len(rcArr))
+		last := rcArr[len(rcArr)-1]
 		require.Equal(t, 1, len(last.Inputs))
 		lastInputDgst := last.Inputs[0].Digest
-		require.Equal(t, m[lastInputDgst], arr[5])
-		e := arr[5]
+		require.Equal(t, rm[lastInputDgst], rcArr[5])
+		e := rcArr[5]
 		require.Equal(t, 3, len(e.Inputs))
+		def, err := i.Base.Marshal(context.TODO())
+		require.NoError(t, err)
+		_, arr := parseDef(t, def.Def)
+		require.Equal(t, 0, len(arr))
 	})
 	t.Run("Kernel local rootfs scratch type none implies raw with include", func(t *testing.T) {
 		hops := &Hops{

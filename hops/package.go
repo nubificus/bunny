@@ -250,12 +250,6 @@ func (i *PackInstructions) SetAnnotations(p Platform, cmd string, kernelPath str
 		i.Annots["com.urunc.unikernel.unikernelVersion"] = p.Version
 	}
 
-	if rootfsPath == "" {
-		// We do not have a rootfs, so no reason to set
-		// rootfs annotations
-		return nil
-	}
-
 	// Depending on the rootfs type, set the respective annotations
 	switch rootfsType {
 	case "":
@@ -303,7 +297,13 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 		return nil, fmt.Errorf("Error choosing base state: %v", err)
 	}
 
-	err = instr.SetAnnotations(h.Platform, h.Cmd, kPath, rPath, framework.GetRootfsType())
+	// Handle the empty rootfs case. In that case, we do not need to set up
+	// any annotations for rootfs and hence the type is set to empty.string
+	rType := ""
+	if rootfsEntry.SourceRef != "" {
+		rType = framework.GetRootfsType()
+	}
+	err = instr.SetAnnotations(h.Platform, h.Cmd, kPath, rPath, rType)
 	if err != nil {
 		return nil, fmt.Errorf("Error setting annotations: %v", err)
 	}
