@@ -155,6 +155,12 @@ func TestValidateBunnyfileRootfs(t *testing.T) {
 			errorText:   "",
 		},
 		{
+			name:        "Valid from registry with includes",
+			input:       "harbor.nbfc.io/path//foo:bar",
+			expectError: true,
+			errorText:   "",
+		},
+		{
 			name:        "Invalid empty from, non-empty path",
 			input:       "/path//",
 			expectError: true,
@@ -182,7 +188,13 @@ func TestValidateBunnyfileRootfs(t *testing.T) {
 			name:        "Invalid from local with includes",
 			input:       "local/path//foo:bar",
 			expectError: true,
-			errorText:   "Adding files to an existing rootfs is not yet",
+			errorText:   "Invalid combination of includes and from fields",
+		},
+		{
+			name:        "Invalid from registry with type initrd and includes",
+			input:       "harbor.nbfc.io/path/initrd/foo:bar",
+			expectError: true,
+			errorText:   "Adding files to an existing non-raw rootfs is not yet supported",
 		},
 		{
 			name:        "Invalid include with no source",

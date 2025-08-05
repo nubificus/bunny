@@ -120,44 +120,57 @@ func handleRootfs(f Framework, buildContext string, mon string, r Rootfs) (*Pack
 
 	// Make sure that the specified rootfs type is supported
 	// from the framework.
-	if r.Type != "" {
-		if !f.SupportsRootfsType(r.Type) {
-			return nil, fmt.Errorf("Cannot build %s rootfs for %s",
-				r.Type, f.Name())
-		}
+	if r.Type != "" && !f.SupportsRootfsType(r.Type) {
+		return nil, fmt.Errorf("Cannot build %s rootfs for %s",
+			r.Type, f.Name())
 	}
 
-	if r.From != "scratch" && r.From != "" {
-		// We do not need to build the rootfs.
-		// We will simply get it from somewhere else
-		entry.SourceRef = r.From
-		if r.From == "local" {
-			entry.SourceState = llb.Local(buildContext)
-		} else {
-			entry.SourceState = GetSourceState(r.From, mon)
-		}
+	entry.SourceRef = r.From
+	switch r.From {
+	case "local":
+		entry.SourceState = llb.Local(buildContext)
 		// TODO: Be aware of the case r.Path is empty, which means we have a
 		// raw rootfs that we reuse.
 		entry.FilePath = r.Path
-
-		// TODO: Handle cases where we append files in a rootfs
-		return entry, nil
-	}
-	// The from field of rootfs is scratch or empty, hence we need to create
-	// a rootfs or just here is no rootfs entry.
-	if len(r.Includes) != 0 {
-		// If the user has not specified a type, then CreateRootfs
-		// will build the default rootfs type for the specified framework.
-		var err error
-		entry.SourceRef = "scratch"
-		entry.SourceState, err = f.CreateRootfs(buildContext)
-		if err != nil {
-			return nil, fmt.Errorf("Could not create rootfs: %v", err)
+	case "scratch", "":
+		// The from field of rootfs is scratch or empty, hence we need to create
+		// a rootfs or just here is no rootfs entry. This depends on the contents
+		// of Includes.
+		if len(r.Includes) != 0 {
+			// If the user has not specified a type, then CreateRootfs
+			// will build the default rootfs type for the specified framework.
+			var err error
+			entry.SourceRef = "scratch"
+			entry.SourceState, err = f.CreateRootfs(buildContext)
+			if err != nil {
+				return nil, fmt.Errorf("Could not create rootfs: %v", err)
+			}
+			if f.GetRootfsType() != "raw" {
+				entry.FilePath = DefaultRootfsPath
+			} else {
+				entry.FilePath = ""
+			}
 		}
-		if f.GetRootfsType() != "raw" {
-			entry.FilePath = DefaultRootfsPath
-		} else {
+	default:
+		if len(r.Includes) != 0 {
+			// TODO Remove below if and support appending other tpyes
+			// of rootfs too
+			if r.Type != "raw" {
+				return nil, fmt.Errorf("Updating a %s rootfs type is not supported yet", r.Type)
+			}
+			var err error
+			entry.SourceState, err = f.UpdateRootfs(buildContext)
+			if err != nil {
+				return nil, fmt.Errorf("Could not update rootfs: %v", err)
+			}
+			// TODO: Change this when we have support for updating
+			// more rootfs types
 			entry.FilePath = ""
+		} else {
+			entry.SourceState = GetSourceState(r.From, mon)
+			// TODO: Be aware of the case r.Path is empty,
+			// which means we have a raw rootfs from an image.
+			entry.FilePath = r.Path
 		}
 	}
 

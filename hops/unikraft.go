@@ -15,6 +15,8 @@
 package hops
 
 import (
+	"fmt"
+
 	"github.com/moby/buildkit/client/llb"
 )
 
@@ -85,14 +87,34 @@ func (i *UnikraftInfo) SupportsArch(arch string) bool {
 }
 
 func (i *UnikraftInfo) CreateRootfs(buildContext string) (llb.State, error) {
-	// TODO: Add support for any other possible supported rootfs types
-	// Currently, by default, we will build a initrd type.
 	local := llb.Local(buildContext)
-	contentState, err := FilesLLB(i.Rootfs.Includes, local, llb.Scratch())
-	if err != nil {
-		return llb.Scratch(), err
+	switch i.Rootfs.Type {
+	case "initrd":
+		contentState, err := FilesLLB(i.Rootfs.Includes, local, llb.Scratch())
+		if err != nil {
+			return llb.Scratch(), err
+		}
+		return InitrdLLB(contentState), nil
+	case "raw":
+		return FilesLLB(i.Rootfs.Includes, local, llb.Scratch())
+	default:
+		// We should never reach this point
+		return llb.Scratch(), fmt.Errorf("Unsupported rootfs type")
 	}
-	return InitrdLLB(contentState), nil
+}
+
+func (i *UnikraftInfo) UpdateRootfs(buildContext string) (llb.State, error) {
+	local := llb.Local(buildContext)
+	base := llb.Image(i.Rootfs.From)
+	switch i.Rootfs.Type {
+	case "initrd":
+		return llb.Scratch(), fmt.Errorf("Can not update an initrd rootfs")
+	case "raw":
+		return FilesLLB(i.Rootfs.Includes, local, base)
+	default:
+		// We should never reach this point
+		return llb.Scratch(), fmt.Errorf("Unsupported rootfs type")
+	}
 }
 
 func (i *UnikraftInfo) BuildKernel(_ string) llb.State {
