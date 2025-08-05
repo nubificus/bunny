@@ -91,6 +91,20 @@ func (i *GenericInfo) CreateRootfs(buildContext string) (llb.State, error) {
 	}
 }
 
+func (i *GenericInfo) UpdateRootfs(buildContext string) (llb.State, error) {
+	local := llb.Local(buildContext)
+	base := llb.Image(i.Rootfs.From)
+	switch i.Rootfs.Type {
+	case "initrd":
+		return llb.Scratch(), fmt.Errorf("Can not update an initrd rootfs")
+	case "raw":
+		return FilesLLB(i.Rootfs.Includes, local, base)
+	default:
+		// We should never reach this point
+		return llb.Scratch(), fmt.Errorf("Unsupported rootfs type")
+	}
+}
+
 func (i *GenericInfo) BuildKernel(_ string) llb.State {
 	return llb.Scratch()
 }

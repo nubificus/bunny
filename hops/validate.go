@@ -78,9 +78,14 @@ func ValidateRootfs(rootfs Rootfs) error {
 		return fmt.Errorf("If type of rootfs is raw, then from can not be local")
 	}
 
-	if len(rootfs.Includes) > 0 && rootfs.From != "" && rootfs.From != "scratch" {
-		return fmt.Errorf("Adding files to an existing rootfs is not yet supported")
+	if len(rootfs.Includes) > 0 && rootfs.From == "local" {
+		return fmt.Errorf("Invalid combination of includes and from fields")
 	}
+
+	if len(rootfs.Includes) > 0 && rootfs.From != "" && rootfs.From != "scratch" && rootfs.Type != "raw" {
+		return fmt.Errorf("Adding files to an existing non-raw rootfs is not yet supported")
+	}
+
 	for _, file := range rootfs.Includes {
 		parts := strings.Split(file, ":")
 		if len(parts) < 1 || len(parts[0]) == 0 {
