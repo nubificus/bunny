@@ -7,9 +7,10 @@ easy an building containers.
 
 1. [Introduction](#introduction)
 2. [The `bunnyfile`](#the-bunnyfile)
-3. [Trying it out](#trying-it-out)
+3. [Containerfile-like syntaxes](#containerfile-like-syntaxes)
+4. [Trying it out](#trying-it-out)
 5. [Supported frameworks](#supported-frameworks)
-7. [Execution modes](#execution-modes)
+6. [Execution modes](#execution-modes)
 7. [Contributing](#contributing)
 8. [License](#license)
 9. [Contact](#contact)
@@ -73,26 +74,26 @@ entrypoint: ["init"]                            # [8] The entrypoint of the cont
 
 The fields of `bunnyfile` in more details:
 
-|    | Description | Required | Value type | Default value |
-| -  | ----------- | -------- | ------------- | ------------ |
-| 1  | instruct Buildkit to use `bunny` for parsing this file | yes | buildkit directive | - | 
-| 2  | API version of `bunnyfile` format. Current version is v0.1 | yes | string in major version format (vX) | - |
-| 3  | Information about targeting platform | yes | - | - |
-| 3a | The unikernel/libOS to target | yes | string | - |
-| 3b | The unikernel/libOS version | no | string | latest |
-| 3c | The VMM or any kind of monitor, where the unikernel will run on top | no | string | framework-dependent |
-| 3d | The target architecture| no | string | `bunny`'s host arch |
-| 4  | Instructions about unikernel's rootfs | no | - | - |
-| 4a | The base image or an image/location that contains a rootfs | no | "scratch", "local", "OCI image" | "scratch" |
-| 4b | The path relative to the `from` field where a rootfs file resides | yes, if `from == "local"` | file path | - |
-| 4c | The type of the rootfs | no | "raw", "initrd" | platform-dependent |
-| 4d | Files from the build context to include in the rootfs | no | list of <build-context-path>:<rootfs-contextext-path> | - |
-| 5  | Information about a prebuilt kernel | no | - | - |
-| 5a | The location where the prebuilt kernel resides | no | "local", "OCI image" | - |
-| 5b | The path relative to the `from` field where a kernel binary resides | yes, if `from` is set  | "local", "OCI image" | - |
-| 6  | A list of environment variables| no | list of <ENVIRONMENT_VARIABLE>:<VALUE> | - |
-| 7  | The command line of the application | no | []string | - |
-| 8  | The entrypoint of the container | no | []string | - |
+| ID  | Description | Required | Value Type | Default Value |
+|-----|-------------|----------|------------|----------------|
+| 1   | Instruct Buildkit to use `bunny` for parsing this file | yes | buildkit directive | - |
+| 2   | API version of `bunnyfile` format. Current version is `v0.1` | yes | string (e.g., `v0.1`) | - |
+| 3   | Information about target platform | yes | - | - |
+| 3a  | The unikernel/libOS to target | yes | string | - |
+| 3b  | The unikernel/libOS version | no | string | - |
+| 3c  | The VMM or monitor where the unikernel will run | yes | string | - |
+| 3d  | The target architecture | no | string | host arch |
+| 4   | Rootfs information | no | - | - |
+| 4a  | Base image or location containing a rootfs | no | `"scratch"`, `"local"`, `"OCI image"` | `"scratch"` |
+| 4b  | Path to rootfs file (relative to `from`) | yes, if `from == "local"` | file path | - |
+| 4c  | Type of the rootfs | no | `"raw"`, `"initrd"` | platform-dependent |
+| 4d  | Files from build context to include in rootfs | no | list of `build-path:rootfs-path` | - |
+| 5   | Prebuilt kernel information | yes | - | - |
+| 5a  | Location of the prebuilt kernel | yes | `"local"`, `"OCI image"` | - |
+| 5b  | Path to kernel binary (relative to `from`) | yes | file path | - |
+| 6   | Environment variables | no | list of `KEY:VALUE` strings | - |
+| 7   | Command line of the application | no | `[string, string, ...]` | - |
+| 8   | Entrypoint of the container | no | `[string, string, ...]` | - |
 
 ### The `rootfs` field
 
@@ -159,6 +160,30 @@ Dockerfile. The field accepts a list of entries with the following format:
 > packaging existing unikernels. With the `bunnyfile`, `bunny` is able to
 > provide much more functionalities and features.
 
+## Containerfile-like syntaxes
+
+In addition to the `bunnyfile`, `bunny` also supports building OCI images using a
+traditional Containerfile-like syntax. However, in this format, `bunny` can only
+package existing files; it does not support generating or modifying them. As a
+result, the set of supported instructions is limited to the following:
+
+- `FROM`: Specifies the base image, it can be an existing OCI image or `scratch`
+- `COPY`: Functions similarly to Containerfiles and copies the specified files
+   in the container's rootfs as a new layer..
+- `LABEL`: all LABEL *instructions* are added as annotations to the container's
+  image. These are also embedded into a special `urunc.json` file inside the
+  image root filesystem.
+- `ENV`: Sets environment variables
+- `CMD`: Defines the command-line arguments for the application.
+- `ENTRYPOINT`: Specifies the container’s entrypoint.
+
+As with `bunnyfile`, using this syntax requires a special BuildKit directive at
+the top of the file:
+
+```
+#syntax=harbor.nbfc.io/nubificus/bunny:latest
+```
+
 ## Trying it out
 
 The easiest and most effortless way to try out `bunny` would be using it as a
@@ -209,23 +234,31 @@ directory](https://github.com/nubificus/bunny/tree/main/examples/README.md)..
 
 ## Supported frameworks
 
-At the moment, `bunny` is available on GNU/Linux for x86\_64 and arm64 architectures.
-The main goals of `bunny` is to build and package unikernels as OCI images.
-Packaging unikernels is agnostic of the frameworks and hence `bunny` can be used
-for any unikernel framework and similar technology. However, for
-building unikernels, `bunny` only provides experimental support which is not
-merged in the main branch yet. We are working on it. However, `bunny` can still be
-used to build the `rootfs` for some unikernels. The below table provides an
-overview of the currently supported unikernels and frameworks:
+Currently, `bunny` is available on GNU/Linux for both x86\_64 and arm64
+architectures. Its primary goal is to build and package unikernels as OCI
+images. The packaging process is framework-agnostic, meaning `bunny` can be
+used with any unikernel framework or similar technology.
 
-| Unikernel  | Build    | Rootfs |
-|----------- |--------- |------- |
-| Rumprun    | :hammer: | raw    |
-| Unikraft   | :hammer: | Initrd |
+While support for building unikernels is underway, it is currently experimental and not yet merged into the main branch. We are actively working on it. That said, `bunny` can already be used to build root filesystems (rootfs) for certain unikernels.
 
-We plan to add support for more and more unikernel frameworks and similar technologies.
-Feel free to [contact](#contact) us for a specific unikernel framework or similar
-technologies that you would like to see in `bunny`.
+The table below summarizes the current support for various unikernels and frameworks:
+
+| Unikernel  | Build    | Rootfs       |
+|----------- |--------- |------------- |
+| Rumprun    | :hammer: | raw          |
+| Unikraft   | :hammer: | Initrd / raw |
+| MirageOS   | :hammer: | No support   |
+| Mewz       | :hammer: | No support   |
+| Linux      | :hammer: | Initrd / raw |
+
+
+Even if a framework is not listed above, specifying the rootfs type `bunny` is
+able to create a `raw` or `initrd` root filesystem and subsequently package
+everything as an OCI image with the necessary annotations for urunc
+
+We plan to continuously expand support for additional unikernel frameworks and
+similar technologies. Feel free to [contact](#contact) us for a specific
+unikernel framework or similar technologies that `bunny` could support.
 
 ## Execution modes
 
