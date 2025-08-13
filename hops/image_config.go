@@ -85,9 +85,12 @@ func (rc *ResultAndConfig) UpdateConfig(annots map[string]string, cmd []string, 
 	// and initialize empty configs.
 	rc.OCIConfig.Platform = plat
 	rc.OCIConfig.RootFS = rfs
-	// Overwrite Cmd and entrypoint based on the values of bunnyfile
-	rc.OCIConfig.Config.Cmd = cmd
-	rc.OCIConfig.Config.Entrypoint = entryp
+	if len(cmd) > 0 {
+		rc.OCIConfig.Config.Cmd = cmd
+	}
+	if len(entryp) > 0 {
+		rc.OCIConfig.Config.Entrypoint = entryp
+	}
 	rc.OCIConfig.Config.Env = append(rc.OCIConfig.Config.Env, ev...)
 
 	if rc.OCIConfig.Config.Labels == nil {
