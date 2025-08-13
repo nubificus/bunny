@@ -63,7 +63,7 @@ func ParseBunnyfile(fileBytes []byte) (*Hops, error) {
 	// TODO: Remove this in next release.
 	// Keep backwards compatibility and if cmd is empty, then
 	// use cmdline. Otherwise, the Cmdline is ignored.
-	if len(bunnyHops.Cmd) == 0 {
+	if len(bunnyHops.Cmd) == 0 && bunnyHops.Cmdline != "" {
 		bunnyHops.Cmd = strings.Split(bunnyHops.Cmdline, " ")
 	}
 
@@ -141,7 +141,7 @@ func ParseContainerfile(fileBytes []byte, buildContext string) (*PackInstruction
 	// Keep backwards compatibility and if the CMD in Containerfile
 	// is not set, then the cmdline annotations will be used for the cmd of
 	// the container image.
-	if len(instr.Config.Cmd) == 0 {
+	if len(instr.Config.Cmd) == 0 && instr.Annots["com.urunc.unikernel.cmdline"] != "" {
 		instr.Config.Cmd = strings.Split(instr.Annots["com.urunc.unikernel.cmdline"], " ")
 	}
 
