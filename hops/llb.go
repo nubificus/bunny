@@ -29,7 +29,7 @@ const (
 
 // Create a LLB State that simply copies all the files in the include list inside
 // an empty image
-func FilesLLB(fileList []string, fromState llb.State, toState llb.State) (llb.State, error) {
+func FilesLLB(fileList []string, fromState llb.State, toState llb.State, uid int) (llb.State, error) {
 	retState := llb.Scratch()
 	for i, file := range fileList {
 		var aCopy PackCopies
@@ -46,9 +46,9 @@ func FilesLLB(fileList []string, fromState llb.State, toState llb.State) (llb.St
 			aCopy.DstPath = parts[1]
 		}
 		if i == 0 {
-			retState = CopyLLB(toState, aCopy)
+			retState = CopyLLB(toState, aCopy, uid)
 		} else {
-			retState = CopyLLB(retState, aCopy)
+			retState = CopyLLB(retState, aCopy, uid)
 		}
 	}
 
@@ -74,10 +74,25 @@ func getArtifacts(exec llb.ExecState, outDir string) llb.StateOption {
 	}
 }
 
-func CopyLLB(to llb.State, from PackCopies) llb.State {
+func CopyLLB(to llb.State, from PackCopies, uid int) llb.State {
+	var cOpts = &llb.CopyInfo{
+		CreateDestPath: true,
+	}
 
-	copyState := to.File(llb.Copy(from.SrcState, from.SrcPath, from.DstPath,
-		&llb.CopyInfo{CreateDestPath: true}))
+	if uid > 0 {
+		owner := &llb.ChownOpt{
+			User: &llb.UserOpt{
+				UID: uid,
+			},
+			Group: &llb.UserOpt{
+				UID: uid,
+			},
+		}
+
+		cOpts.ChownOpt = owner
+	}
+
+	copyState := to.File(llb.Copy(from.SrcState, from.SrcPath, from.DstPath, cOpts))
 
 	return copyState
 }
