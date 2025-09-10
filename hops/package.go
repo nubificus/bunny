@@ -51,11 +51,20 @@ type Kernel struct {
 	Path string `yaml:"path"`
 }
 
+type App struct {
+	Name     string `yaml:"name"`
+	From     string `yaml:"from"`
+	Branch   string `yaml:"branch"`
+	Path     string `yaml:"path"`
+	Language string `yaml:"language"`
+}
+
 type Hops struct {
 	Version    string   `yaml:"version"`
 	Platform   Platform `yaml:"platforms"`
 	Rootfs     Rootfs   `yaml:"rootfs"`
 	Kernel     Kernel   `yaml:"kernel"`
+	App        App      `yaml:"app"`
 	Cmdline    string   `yaml:"cmdline"`
 	Cmd        []string `yaml:"cmd"`
 	Entrypoint []string `yaml:"entrypoint"`
@@ -111,6 +120,15 @@ func handleKernel(_ Framework, buildContext string, mon string, k Kernel) (*Pack
 		entry.SourceState = GetSourceState(k.From, mon)
 	}
 	entry.FilePath = k.Path
+
+	return entry, nil
+}
+
+func handleApp(f Framework, buildContext string, mon string, app App) (*PackEntry, error) {
+	entry := &PackEntry{}
+	entry.SourceRef = "local"
+	entry.SourceState = f.BuildKernel(buildContext)
+	entry.FilePath = DefaultKernelPath
 
 	return entry, nil
 }
@@ -323,6 +341,8 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 	switch h.Platform.Framework {
 	case unikraftName:
 		framework = NewUnikraft(h.Platform, h.Rootfs)
+	case mirageName:
+		framework = NewMirage(h.Platform, h.Rootfs, h.App)
 	default:
 		framework = NewGeneric(h.Platform, h.Rootfs)
 	}
@@ -337,6 +357,12 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 		return nil, fmt.Errorf("Error handling rootfs entry: %v", err)
 	}
 
+	if kernelEntry.SourceRef == "" {
+		kernelEntry, err = handleApp(framework, buildContext, h.Platform.Monitor, h.App)
+		if err != nil {
+			return nil, fmt.Errorf("Error handling kernel entry: %v", err)
+		}
+	}
 	kPath, rPath, err := instr.SetBaseAndGetPaths(kernelEntry, rootfsEntry)
 	if err != nil {
 		return nil, fmt.Errorf("Error choosing base state: %v", err)
@@ -376,7 +402,7 @@ func PackLLB(instr PackInstructions) (*llb.Definition, error) {
 
 	// Perform any copies inside the image
 	for _, aCopy := range instr.Copies {
-		base = CopyLLB(base, aCopy)
+		base = CopyLLB(base, aCopy, -1)
 	}
 
 	// Create the urunc.json file in the rootfs

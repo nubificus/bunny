@@ -45,9 +45,11 @@ func ParseBunnyfile(fileBytes []byte) (*Hops, error) {
 		return nil, err
 	}
 
-	err = ValidateKernel(bunnyHops.Kernel)
-	if err != nil {
-		return nil, err
+	if bunnyHops.App.Name == "" {
+		err = ValidateKernel(bunnyHops.Kernel)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Set default value of from to scratch
