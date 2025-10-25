@@ -8,3 +8,4 @@ RUN make
 FROM scratch
 COPY --from=builder /bunny/dist/bunny /bin/bunny
 ENTRYPOINT ["/bin/bunny"]
+
