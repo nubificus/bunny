@@ -98,14 +98,14 @@ jobs:
           jq -r '.[0].Id')" >> $GITHUB_ENV
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62
+        uses: sigstore/cosign-installer@main
 
       - name: Sign the published Docker image
         env:
           COSIGN_EXPERIMENTAL: "true"
           DIGEST: ${{steps.build-and-push.outputs.digest}}
         run: |
-          cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}@$DIGEST \
+          cosign sign --new-bundle-format=false --use-signing-config=false --yes ${{ env.REGISTRY }}/${{ github.repository }}@$DIGEST \
           -a "repo=${{github.repository}}" \
           -a "workflow=${{github.workflow}}" \
           -a "ref=${{github.sha}}" \
@@ -184,10 +184,8 @@ jobs:
         env:
           COSIGN_EXPERIMENTAL: "true"
           DIGEST: ${{steps.create-manifest.outputs.manifest_sha }}
-        # run: echo "${{ steps.meta.outputs.tags }}" | xargs -I {} cosign sign {}@${{ steps.build-and-push.outputs.digest }}
         run: |
-          #cosign sign --yes harbor.nbfc.io/nubificus/${{ github.repository }}/${{ matrix.dockerfile }}:${{ env.ARCH }}-${{ env.SHA_SHORT }}@$DIGEST \
-          cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}@$DIGEST \
+          cosign sign --new-bundle-format=false --use-signing-config=false --yes ${{ env.REGISTRY }}/${{ github.repository }}@$DIGEST \
           -a "repo=${{github.repository}}" \
           -a "workflow=${{github.workflow}}" \
           -a "ref=${{github.sha}}" \
