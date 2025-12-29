@@ -57,8 +57,10 @@ func (rc *ResultAndConfig) GetBaseConfig(ctx context.Context, c client.Client, r
 	}
 	_, _, config, err := c.ResolveImageConfig(ctx, baseImageName,
 		sourceresolver.Opt{
-			LogName:  "resolving image metadata for " + baseImageName,
-			Platform: &plat,
+			LogName: "resolving image metadata for " + baseImageName,
+			ImageOpt: &sourceresolver.ResolveImageOpt{
+				Platform: &plat,
+			},
 		})
 	if err != nil {
 		return fmt.Errorf("Failed to get image config from %s: %v", baseImageName, err)
