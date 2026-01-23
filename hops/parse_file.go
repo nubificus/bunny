@@ -88,16 +88,11 @@ func ParseBunnyfile(fileBytes []byte) (*Hops, error) {
 		return nil, err
 	}
 
-	err = ValidateKernel(bunnyHops.Kernel)
-	if err != nil {
-		return nil, err
-	}
+	//err = ValidateKernel(bunnyHops.Kernel)
+	//if err != nil {
+	//	return nil, err
+	//}
 
-	// Set default value of from to scratch
-	// Make sure that any reference to Rootfs.From can not be an empty string
-	if bunnyHops.Rootfs.From == "" {
-		bunnyHops.Rootfs.From = "scratch"
-	}
 	err = ValidateRootfs(bunnyHops.Rootfs)
 	if err != nil {
 		return nil, err

@@ -24,6 +24,9 @@ import (
 
 const (
 	defaultBsdcpioImage string = "harbor.nbfc.io/nubificus/bunny/libarchive:latest"
+	DefaultC2WASMBuildImage string = "harbor.nbfc.io/nubificus/bunny/tool/wasm/c:latest"
+	DefaultRust2WASMBuildImage string = "harbor.nbfc.io/nubificus/bunny/tool/wasm/rust:latest"
+	DefaultBuildDir string = "/build"
 )
 
 // Create a LLB State that simply copies all the files in the include list inside
@@ -97,4 +100,52 @@ func GetSourceState(sourceRef string, monitor string) llb.State {
 	}
 
 	return llb.Image(sourceRef)
+}
+
+func buildRustWasm(appInfo App, buildContext string) llb.State {
+	tools := llb.Image(DefaultRust2WASMBuildImage, llb.WithCustomName("Internal:Build Rust in WASM"))
+	outDir := "/.boot"
+	var sourceState llb.State
+
+	if appInfo.From == "local" {
+		sourceState = llb.Local(buildContext)
+	} else {
+		sourceState = llb.Image(appInfo.From)
+	}
+
+	build := tools.Dir(DefaultBuildDir).
+		AddEnv("PATH", "/root/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin").
+		Run(llb.Shlex("cargo build --target wasm32-wasip2 --release")).
+		AddMount(DefaultBuildDir, sourceState)
+
+	module := tools.Dir(DefaultBuildDir).
+	Run(llb.Shlex("sh -c 'find target/wasm32-wasip2/release/ -depth -maxdepth 1 -type f -print0 | xargs -0 file | grep WebAssembly | cut -d: -f1 | xargs -I{} cp \"{}\" /.boot/app'"), llb.AddMount(DefaultBuildDir, build, llb.Readonly))
+
+	outApp := llb.Scratch().File(llb.Mkdir(outDir, 0755))
+	return outApp.With(getArtifacts(module, outDir))
+}
+
+func buildCWasm(appInfo App, buildContext string) llb.State {
+	tools := llb.Image(DefaultC2WASMBuildImage, llb.WithCustomName("Internal:Build C app to WASM"))
+	outDir := "/.boot"
+	var sourceState llb.State
+
+	if appInfo.From == "local" {
+		sourceState = llb.Local(buildContext)
+	} else {
+		sourceState = llb.Image(appInfo.From)
+	}
+
+	build := tools.Dir(DefaultBuildDir).
+		AddEnv("PATH", "/opt/wasi-sdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin").
+		AddEnv("CC", "clang").
+		AddEnv("CFLAGS", "--target=wasm32-wasi --sysroot=/opt/wasi-sdk/share/wasi-sysroot").
+		Run(llb.Shlex("make")).
+		AddMount(DefaultBuildDir, sourceState)
+
+	module := tools.Dir(DefaultBuildDir).
+		Run(llb.Shlex("sh -c 'find . -type f -print0 | xargs -0 file | grep WebAssembly | cut -d: -f1 | xargs -I{} cp \"{}\" /.boot/app'"), llb.AddMount(DefaultBuildDir, build, llb.Readonly))
+
+	outApp := llb.Scratch().File(llb.Mkdir(outDir, 0755))
+	return outApp.With(getArtifacts(module, outDir))
 }

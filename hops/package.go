@@ -359,6 +359,8 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 	switch h.Platform.Framework {
 	case unikraftName:
 		framework = NewUnikraft(h.Platform, h.Rootfs, h.App)
+	case wasiName:
+		framework = NewWasi(h.Platform, h.Rootfs, h.App)
 	default:
 		framework = NewGeneric(h.Platform, h.Rootfs, h.App)
 	}
