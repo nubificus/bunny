@@ -29,9 +29,10 @@ type UnikraftInfo struct {
 	Monitor string
 	Arch    string
 	Rootfs  Rootfs
+	App     App
 }
 
-func NewUnikraft(plat Platform, rfs Rootfs) *UnikraftInfo {
+func NewUnikraft(plat Platform, rfs Rootfs, app App) *UnikraftInfo {
 	if rfs.Type == "" {
 		rfs.Type = "initrd"
 	}
@@ -40,6 +41,7 @@ func NewUnikraft(plat Platform, rfs Rootfs) *UnikraftInfo {
 		Monitor: plat.Monitor,
 		Arch:    plat.Arch,
 		Rootfs:  rfs,
+		App:     app,
 	}
 }
 
@@ -113,5 +115,9 @@ func (i *UnikraftInfo) UpdateRootfs(buildContext string) (llb.State, error) {
 }
 
 func (i *UnikraftInfo) BuildKernel(_ string) llb.State {
+	return llb.Scratch()
+}
+
+func (i *UnikraftInfo) BuildApp(_ string) llb.State {
 	return llb.Scratch()
 }

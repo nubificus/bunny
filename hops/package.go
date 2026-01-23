@@ -28,6 +28,7 @@ import (
 const (
 	DefaultKernelPath string = "/.boot/kernel"
 	DefaultRootfsPath string = "/.boot/rootfs"
+	DefaultAppPath    string = "/.boot/app"
 	unikraftHub       string = "unikraft.org"
 	uruncJSONPath     string = "/urunc.json"
 )
@@ -57,11 +58,18 @@ type Kernel struct {
 	Path string `yaml:"path"`
 }
 
+type App struct {
+	Name string `yaml:"name"`
+	From string `yaml:"from"`
+	Language string `yaml:"language"`
+}
+
 type Hops struct {
 	Version    string   `yaml:"version"`
 	Platform   Platform `yaml:"platforms"`
 	Rootfs     Rootfs   `yaml:"rootfs"`
 	Kernel     Kernel   `yaml:"kernel"`
+	App        App      `yaml:"app"`
 	Cmdline    string   `yaml:"cmdline"`
 	Cmd        []string `yaml:"cmd"`
 	Entrypoint []string `yaml:"entrypoint"`
@@ -118,6 +126,14 @@ func handleKernel(_ Framework, buildContext string, mon string, k Kernel) (*Pack
 	}
 	entry.FilePath = k.Path
 
+	return entry, nil
+}
+
+func handleApp(f Framework, buildContext string, mon string, a App) (*PackEntry, error) {
+	entry := &PackEntry{}
+	entry.SourceState = f.BuildApp(buildContext)
+	entry.SourceRef = "scratch"
+	entry.FilePath = DefaultAppPath
 	return entry, nil
 }
 
@@ -191,11 +207,11 @@ func makeCopy(entry PackEntry, dst string) PackCopies {
 	}
 }
 
-// SetBaseAndGetPaths sets the base llb.State between kernel state
-// and rootfs entry. It also copies the necessary files from non-base
-// state. It returns the path to the kernel and rootfs (if exists) files
+// SetBaseAndGetPaths sets the base llb.State between app, kernel
+// and rootfs entries. It also copies the necessary files from non-base
+// state. It returns the path to the app, kernel and rootfs (if exists) files
 // or an error if something went wrong.
-func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEntry) (string, string, error) {
+func (i *PackInstructions) SetBaseAndGetPaths(aEntry *PackEntry, kEntry *PackEntry, rEntry *PackEntry) (string, string, error) {
 	// The goal is to merge both with minimal file copies.
 	// Typically, we prefer to use the state that already contains one or more
 	// of the required files (i.e., when fetched remotely) to avoid unnecessary
@@ -211,7 +227,7 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 	kernelCopy := false
 	switch kEntry.SourceRef {
 	case "":
-		return "", "", fmt.Errorf("Source of kernel State is empty")
+		// do nothing
 	case "local":
 		i.Copies = append(i.Copies,
 			makeCopy(*kEntry, DefaultKernelPath))
@@ -274,6 +290,13 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 		rPath = rEntry.FilePath
 	}
 
+	if !kernelCopy && !rootfsCopy {
+		i.Base = aEntry.SourceState
+		i.Config.BaseRef = aEntry.SourceRef
+	} else {
+		i.Copies = append(i.Copies,
+			makeCopy(*aEntry, DefaultAppPath))
+	}
 	return kPath, rPath, nil
 }
 
@@ -335,9 +358,14 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 	// rootfs.
 	switch h.Platform.Framework {
 	case unikraftName:
-		framework = NewUnikraft(h.Platform, h.Rootfs)
+		framework = NewUnikraft(h.Platform, h.Rootfs, h.App)
 	default:
-		framework = NewGeneric(h.Platform, h.Rootfs)
+		framework = NewGeneric(h.Platform, h.Rootfs, h.App)
+	}
+
+	appEntry, err := handleApp(framework, buildContext, h.Platform.Monitor, h.App)
+	if err != nil {
+		return nil, fmt.Errorf("Error handling kernel entry: %v", err)
 	}
 
 	kernelEntry, err := handleKernel(framework, buildContext, h.Platform.Monitor, h.Kernel)
@@ -350,7 +378,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 		return nil, fmt.Errorf("Error handling rootfs entry: %v", err)
 	}
 
-	kPath, rPath, err := instr.SetBaseAndGetPaths(kernelEntry, rootfsEntry)
+	kPath, rPath, err := instr.SetBaseAndGetPaths(appEntry, kernelEntry, rootfsEntry)
 	if err != nil {
 		return nil, fmt.Errorf("Error choosing base state: %v", err)
 	}

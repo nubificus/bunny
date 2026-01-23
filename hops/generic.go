@@ -29,9 +29,10 @@ type GenericInfo struct {
 	Monitor string
 	Arch    string
 	Rootfs  Rootfs
+	App     App
 }
 
-func NewGeneric(plat Platform, rfs Rootfs) *GenericInfo {
+func NewGeneric(plat Platform, rfs Rootfs, app App) *GenericInfo {
 	if rfs.Type == "" {
 		rfs.Type = "raw"
 	}
@@ -40,6 +41,7 @@ func NewGeneric(plat Platform, rfs Rootfs) *GenericInfo {
 		Monitor: plat.Monitor,
 		Arch:    plat.Arch,
 		Rootfs:  rfs,
+		App:     app,
 	}
 }
 
@@ -103,5 +105,9 @@ func (i *GenericInfo) UpdateRootfs(buildContext string) (llb.State, error) {
 }
 
 func (i *GenericInfo) BuildKernel(_ string) llb.State {
+	return llb.Scratch()
+}
+
+func (i *GenericInfo) BuildApp(_ string) llb.State {
 	return llb.Scratch()
 }

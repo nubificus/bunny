@@ -28,4 +28,5 @@ type Framework interface {
 	CreateRootfs(string) (llb.State, error)
 	UpdateRootfs(string) (llb.State, error)
 	BuildKernel(string) llb.State
+	BuildApp(string) llb.State
 }
