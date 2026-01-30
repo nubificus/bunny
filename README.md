@@ -136,6 +136,7 @@ field is useful. Users can choose (if they wish) a specific type of rootfs and
 `bunny` will build it. Currently, `bunny` can create the following types:
 
 - **initrd**: A typical cpio file that guests can use as an initial rootfs.
+- **block**: A block image that can be used as a rootfs.
 - **raw**: In this case `bunny` does not build any specific kind of file, but
   instead copies the files, that the user specifies, directly in the OCI image's
   rootfs. This type is useful when we want to pass the entire OCI image's rootfs
@@ -243,18 +244,19 @@ While support for building unikernels is underway, it is currently experimental 
 
 The table below summarizes the current support for various unikernels and frameworks:
 
-| Unikernel  | Build    | Rootfs       |
-|----------- |--------- |------------- |
-| Rumprun    | :hammer: | raw          |
-| Unikraft   | :hammer: | Initrd / raw |
-| MirageOS   | :hammer: | No support   |
-| Mewz       | :hammer: | No support   |
-| Linux      | :hammer: | Initrd / raw |
+| Unikernel  | Build    | Rootfs              |
+|----------- |--------- |-------------------  |
+| Rumprun    | :hammer: | block / raw         |
+| Unikraft   | :hammer: | initrd / raw        |
+| MirageOS   | :hammer: | block /raw          |
+| Mewz       | :hammer: | No support          |
+| Linux      | :hammer: | initrd / block /raw |
 
 
-Even if a framework is not listed above, specifying the rootfs type `bunny` is
-able to create a `raw` or `initrd` root filesystem and subsequently package
-everything as an OCI image with the necessary annotations for urunc
+Even if a framework is not listed above, specifying one of the supported rootfs types
+will be enough for `bunny` to create or handle such a root filesystem
+and subsequently package everything as an OCI image with the necessary
+annotations for urunc
 
 We plan to continuously expand support for additional unikernel frameworks and
 similar technologies. Feel free to [contact](#contact) us for a specific

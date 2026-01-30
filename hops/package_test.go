@@ -242,7 +242,7 @@ func TestPackHandleRootfs(t *testing.T) {
 
 		e, err := handleRootfs(f, "context", "mon", r)
 		require.Nil(t, e)
-		require.ErrorContains(t, err, "Cannot build foo")
+		require.ErrorContains(t, err, "Cannot set foo")
 	})
 }
 
@@ -289,6 +289,14 @@ func TestPackSetAnnotations(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:        "Valid with version and block rootfs",
+			version:     "v0.1.1",
+			cmd:         []string{"cli"},
+			kPath:       "kernel",
+			rType:       "block",
+			expectError: false,
+		},
+		{
 			name:        "Invalid rootfs type",
 			version:     "v0.1.1",
 			cmd:         []string{"cli"},
@@ -320,12 +328,31 @@ func TestPackSetAnnotations(t *testing.T) {
 				require.Equal(t, p.Version, i.Annots["com.urunc.unikernel.unikernelVersion"])
 				require.Equal(t, strings.Join(tc.cmd, " "), i.Annots["com.urunc.unikernel.cmdline"])
 				require.Equal(t, tc.kPath, i.Annots["com.urunc.unikernel.binary"])
-				if tc.rType == "raw" {
+				switch tc.rType {
+				case "raw":
 					require.Equal(t, "true", i.Annots["com.urunc.unikernel.mountRootfs"])
 					require.Equal(t, tc.rPath, i.Annots["com.urunc.unikernel.initrd"])
-				} else {
+					require.Equal(t, "", i.Annots["com.urunc.unikernel.block"])
+					require.Equal(t, "", i.Annots["com.urunc.unikernel.blkMntPoint"])
+				case "initrd":
 					require.Equal(t, "false", i.Annots["com.urunc.unikernel.mountRootfs"])
 					require.Equal(t, tc.rPath, i.Annots["com.urunc.unikernel.initrd"])
+					require.Equal(t, "", i.Annots["com.urunc.unikernel.block"])
+					require.Equal(t, "", i.Annots["com.urunc.unikernel.blkMntPoint"])
+				case "block":
+					require.Equal(t, "false", i.Annots["com.urunc.unikernel.mountRootfs"])
+					require.Equal(t, "", i.Annots["com.urunc.unikernel.initrd"])
+					require.Equal(t, tc.rPath, i.Annots["com.urunc.unikernel.block"])
+					if p.Framework == "rumprun" {
+						require.Equal(t, "/data", i.Annots["com.urunc.unikernel.blkMntPoint"])
+					} else {
+						require.Equal(t, "/", i.Annots["com.urunc.unikernel.blkMntPoint"])
+					}
+				default:
+					require.Equal(t, "false", i.Annots["com.urunc.unikernel.mountRootfs"])
+					require.Equal(t, "", i.Annots["com.urunc.unikernel.initrd"])
+					require.Equal(t, "", i.Annots["com.urunc.unikernel.block"])
+					require.Equal(t, "", i.Annots["com.urunc.unikernel.blkMntPoint"])
 				}
 			}
 		})
