@@ -101,12 +101,20 @@ func TestGenericGetRootfsType(t *testing.T) {
 
 func TestGenericSupportsRootfsType(t *testing.T) {
 	generic := &GenericInfo{}
-	t.Run("Supported rootfs type", func(t *testing.T) {
+	t.Run("Supported rootfs type initrd", func(t *testing.T) {
 		require.Equal(t, true, generic.SupportsRootfsType("initrd"))
 
 	})
-	t.Run("Unsupported rootfs type", func(t *testing.T) {
+	t.Run("Supported rootfs type block", func(t *testing.T) {
+		require.Equal(t, true, generic.SupportsRootfsType("block"))
+
+	})
+	t.Run("Supported rootfs type raw", func(t *testing.T) {
 		require.Equal(t, true, generic.SupportsRootfsType("raw"))
+
+	})
+	t.Run("Unsupported rootfs type foo", func(t *testing.T) {
+		require.Equal(t, false, generic.SupportsRootfsType("foo"))
 
 	})
 }
