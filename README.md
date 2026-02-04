@@ -224,7 +224,7 @@ The above `bunnyfile` will perform the following steps:
    empty OCI image at `/boot/rootfs`.
 2. Copy the file `kernel` from the local build context to the OCI image we used
    in the previous step at `/boot/kernel`.
-3. Set up [`urunc`'s annotations](https://urunc.io/image-building/#annotations)
+3. Set up [`urunc`'s annotations](https://urunc.io/package/#annotations)
    using all the information in the file (e.g. framework, version, cmd,
    binary, initrd).
 4. Produce the final OCI image.
