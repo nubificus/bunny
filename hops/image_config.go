@@ -26,6 +26,7 @@ import (
 	"github.com/moby/buildkit/exporter/containerimage/exptypes"
 	"github.com/moby/buildkit/frontend/gateway/client"
 	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
+	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
 )
 
 type ResultAndConfig struct {
@@ -72,6 +73,28 @@ func (rc *ResultAndConfig) GetBaseConfig(ctx context.Context, c client.Client, r
 	}
 
 	return nil
+}
+
+func (rc *ResultAndConfig) SetConfig(annots map[string]string, cfg dockerspec.DockerOCIImageConfig) {
+	plat := ocispecs.Platform{
+		Architecture: runtime.GOARCH,
+		OS:           "linux",
+	}
+	rfs := ocispecs.RootFS{
+		Type: "layers",
+	}
+
+	// Overwrite platform and rootfs to remove unikraft specific platform
+	// and initialize empty configs.
+	rc.OCIConfig.Platform = plat
+	rc.OCIConfig.RootFS = rfs
+	rc.OCIConfig.Config = copyToOCIImageConfig(cfg)
+	if rc.OCIConfig.Config.Labels == nil {
+		rc.OCIConfig.Config.Labels = make(map[string]string)
+	}
+	for k, v := range annots {
+		rc.OCIConfig.Config.Labels[k] = v
+	}
 }
 
 func (rc *ResultAndConfig) UpdateConfig(annots map[string]string, cmd []string, entryp []string, ev []string) {
@@ -122,4 +145,41 @@ func (rc *ResultAndConfig) ApplyConfig(annots map[string]string) error {
 
 	rc.Res = res
 	return nil
+}
+
+func copyToOCIImageConfig(src dockerspec.DockerOCIImageConfig) ocispecs.ImageConfig {
+	return ocispecs.ImageConfig{
+		User:         src.User,
+		ExposedPorts: copyStringSet(src.ExposedPorts),
+		Env:          append([]string(nil), src.Env...),
+		Entrypoint:   append([]string(nil), src.Entrypoint...),
+		Cmd:          append([]string(nil), src.Cmd...),
+		Volumes:      copyStringSet(src.Volumes),
+		WorkingDir:   src.WorkingDir,
+		Labels:       copyStringMap(src.Labels),
+		StopSignal:   src.StopSignal,
+		ArgsEscaped:  src.ArgsEscaped,
+	}
+}
+
+func copyStringSet(in map[string]struct{}) map[string]struct{} {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]struct{}, len(in))
+	for k := range in {
+		out[k] = struct{}{}
+	}
+	return out
+}
+
+func copyStringMap(in map[string]string) map[string]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }

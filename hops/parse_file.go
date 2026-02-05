@@ -16,6 +16,7 @@ package hops
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -24,6 +25,8 @@ import (
 	"github.com/moby/buildkit/frontend/dockerfile/parser"
 	"gopkg.in/yaml.v3"
 )
+
+var ErrIsContainerfile = errors.New("It is a Containerfile")
 
 // ParseBunnyfile reads a yaml file which contains instructions for
 // bunny.
@@ -164,7 +167,7 @@ func ParseFile(fileBytes []byte, buildContext string) (*PackInstructions, error)
 	for _, line := range lines[1:] {
 		if len(bytes.TrimSpace(line)) > 0 {
 			if strings.HasPrefix(string(line), "FROM") {
-				return ParseContainerfile(fileBytes, buildContext)
+				return nil, ErrIsContainerfile
 			}
 			break
 		}

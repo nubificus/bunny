@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -26,6 +27,8 @@ import (
 	"github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/frontend/gateway/grpcclient"
 	"github.com/moby/buildkit/util/appcontext"
+	"github.com/moby/buildkit/frontend/dockerfile/dockerfile2llb"
+	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
 )
 
 const (
@@ -100,6 +103,31 @@ func readFileFromLLB(ctx context.Context, c client.Client, filename string) ([]b
 	return fileBytes, nil
 }
 
+func parseBuildContainerfile(fileBytes []byte, buildContext string, ctx context.Context, c client.Client) (*hops.PackInstructions, *dockerspec.DockerOCIImage, error) {
+	instr := new(hops.PackInstructions)
+	instr.Annots = make(map[string]string)
+
+	//caps := pb.Caps.CapSet(pb.Caps.All())
+
+	state, img, _, _, err := dockerfile2llb.Dockerfile2LLB(ctx, fileBytes,
+		dockerfile2llb.ConvertOpt{
+			MetaResolver: c,
+		},
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Failed to get LLB from ContainerFile: %v", err)
+	}
+
+	instr.Base = *state
+
+	instr.Config.Monitor = "qemu"
+	instr.Annots["com.urunc.unikernel.binary"] = "/.boot/kernel"
+	instr.Annots["com.urunc.unikernel.unikernelType"] = "linux"
+	instr.Annots["com.urunc.unikernel.hypervisor"] = "qemu"
+	instr.Annots["com.urunc.unikernel.mountRootfs"] = "true"
+	return instr, img, nil
+}
+
 func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) {
 	// Get the Build options from buildkit
 	buildOpts := c.BuildOpts().Opts
@@ -117,7 +145,13 @@ func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) 
 	}
 
 	// Parse packaging/building instructions
+	var img *dockerspec.DockerOCIImage
+	isContainerfile := false
 	packInst, err := hops.ParseFile(fileBytes, buildContextName)
+	if errors.Is(err, hops.ErrIsContainerfile) {
+		isContainerfile = true
+		packInst, img, err = parseBuildContainerfile(fileBytes, buildContextName, ctx, c)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing building instructions: %v", err)
 	}
@@ -146,7 +180,11 @@ func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) 
 
 	// Set some default values in the Image config
 	// and add cmdline and Labels
-	rc.UpdateConfig(packInst.Annots, packInst.Config.Cmd, packInst.Config.Entrypoint, packInst.Config.EnVars)
+	if !isContainerfile {
+		rc.UpdateConfig(packInst.Annots, packInst.Config.Cmd, packInst.Config.Entrypoint, packInst.Config.EnVars)
+	} else {
+		rc.SetConfig(packInst.Annots, img.Config)
+	}
 
 	// Apply annotations and the new config to the solver's result
 	err = rc.ApplyConfig(packInst.Annots)
