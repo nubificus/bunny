@@ -55,6 +55,8 @@ func (i *GenericInfo) SupportsRootfsType(rootfsType string) bool {
 	switch rootfsType {
 	case "initrd":
 		return true
+	case "block":
+		return true
 	case "raw":
 		return true
 	default:
@@ -87,7 +89,7 @@ func (i *GenericInfo) CreateRootfs(buildContext string) (llb.State, error) {
 		return FilesLLB(i.Rootfs.Includes, local, llb.Scratch())
 	default:
 		// We should never reach this point
-		return llb.Scratch(), fmt.Errorf("Unsupported rootfs type")
+		return llb.Scratch(), fmt.Errorf("Unsupported rootfs type %s", i.Rootfs.Type)
 	}
 }
 
@@ -101,7 +103,7 @@ func (i *GenericInfo) UpdateRootfs(buildContext string) (llb.State, error) {
 		return FilesLLB(i.Rootfs.Includes, local, base)
 	default:
 		// We should never reach this point
-		return llb.Scratch(), fmt.Errorf("Unsupported rootfs type")
+		return llb.Scratch(), fmt.Errorf("Unsupported rootfs type %s", i.Rootfs.Type)
 	}
 }
 

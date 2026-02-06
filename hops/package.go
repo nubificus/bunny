@@ -121,7 +121,7 @@ func handleRootfs(f Framework, buildContext string, mon string, r Rootfs) (*Pack
 	// Make sure that the specified rootfs type is supported
 	// from the framework.
 	if r.Type != "" && !f.SupportsRootfsType(r.Type) {
-		return nil, fmt.Errorf("Cannot build %s rootfs for %s",
+		return nil, fmt.Errorf("Cannot set %s rootfs type for %s",
 			r.Type, f.Name())
 	}
 
@@ -292,6 +292,13 @@ func (i *PackInstructions) SetAnnotations(p Platform, cmd []string, kernelPath s
 		// no-op
 	case "initrd":
 		i.Annots["com.urunc.unikernel.initrd"] = rootfsPath
+	case "block":
+		i.Annots["com.urunc.unikernel.block"] = rootfsPath
+		i.Annots["com.urunc.unikernel.blkMntPoint"] = "/"
+		// TODO: FInd a better way to set a non-root mountpoint for rumprun
+		if p.Framework == "rumprun" {
+			i.Annots["com.urunc.unikernel.blkMntPoint"] = "/data"
+		}
 	case "raw":
 		i.Annots["com.urunc.unikernel.mountRootfs"] = "true"
 	default:
