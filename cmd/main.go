@@ -34,6 +34,10 @@ import (
 const (
 	buildContextName  string = "context"
 	clientOptFilename string = "filename"
+	urunitImage string = "harbor.nbfc.io/nubificus/urunit:latest"
+	urunitPath string = "/urunit"
+	kernelImage string = "harbor.nbfc.io/nubificus/urunc/linux-kernel-qemu:latest"
+	kernelPath string = "/.boot//kernel"
 )
 
 type CLIOpts struct {
@@ -151,6 +155,18 @@ func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) 
 	if errors.Is(err, hops.ErrIsContainerfile) {
 		isContainerfile = true
 		packInst, img, err = parseBuildContainerfile(fileBytes, buildContextName, ctx, c)
+		if err == nil {
+			var aCopy hops.PackCopies
+
+			aCopy.SrcState = llb.Image(urunitImage)
+			aCopy.SrcPath = urunitPath
+			aCopy.DstPath = urunitPath
+			packInst.Copies = append(packInst.Copies, aCopy)
+			aCopy.SrcState = llb.Image(kernelImage)
+			aCopy.SrcPath = kernelPath
+			aCopy.DstPath = kernelPath
+			packInst.Copies = append(packInst.Copies, aCopy)
+		}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing building instructions: %v", err)
