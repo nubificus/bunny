@@ -16,7 +16,6 @@ package hops
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/hashicorp/go-version"
 )
@@ -84,13 +83,6 @@ func ValidateRootfs(rootfs Rootfs) error {
 
 	if len(rootfs.Includes) > 0 && rootfs.From != "" && rootfs.From != "scratch" && rootfs.Type != "raw" {
 		return fmt.Errorf("Adding files to an existing non-raw rootfs is not yet supported")
-	}
-
-	for _, file := range rootfs.Includes {
-		parts := strings.Split(file, ":")
-		if len(parts) < 1 || len(parts[0]) == 0 {
-			return fmt.Errorf("Invalid syntax in rootf's include. An entry can not have its first part empty")
-		}
 	}
 
 	return nil

@@ -29,10 +29,14 @@ func TestLLBFiles(t *testing.T) {
 	t.Run("Single file", func(t *testing.T) {
 		src := llb.Local("context")
 		dst := llb.Scratch()
-		files := []string{"foo1"}
+		files := []FileToInclude{
+			{
+				Src: "foo1",
+				Dst: "foo1",
+			},
+		}
 
-		state, err := FilesLLB(files, src, dst)
-		require.NoError(t, err)
+		state := FilesLLB(files, src, dst)
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)
@@ -62,10 +66,18 @@ func TestLLBFiles(t *testing.T) {
 	t.Run("Multiple files", func(t *testing.T) {
 		src := llb.Local("context")
 		dst := llb.Image("foo")
-		files := []string{"foo1:bar1", "foo2:bar2"}
+		files := []FileToInclude{
+			{
+				Src: "foo1",
+				Dst: "bar1",
+			},
+			{
+				Src: "foo2",
+				Dst: "bar2",
+			},
+		}
 
-		state, err := FilesLLB(files, src, dst)
-		require.NoError(t, err)
+		state := FilesLLB(files, src, dst)
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)
@@ -103,36 +115,9 @@ func TestLLBFiles(t *testing.T) {
 	t.Run("Empty files list", func(t *testing.T) {
 		src := llb.Local("context")
 		dst := llb.Scratch()
-		files := []string{}
+		files := []FileToInclude{}
 
-		state, err := FilesLLB(files, src, dst)
-		require.NoError(t, err)
-		def, err := state.Marshal(context.TODO())
-
-		require.NoError(t, err)
-		_, arr := parseDef(t, def.Def)
-		require.Equal(t, 0, len(arr))
-	})
-	t.Run("Invalid file list no dest", func(t *testing.T) {
-		src := llb.Local("context")
-		dst := llb.Scratch()
-		files := []string{":foo"}
-
-		state, err := FilesLLB(files, src, dst)
-		require.EqualError(t, err, "Invalid format of the file list to copy")
-		def, err := state.Marshal(context.TODO())
-
-		require.NoError(t, err)
-		_, arr := parseDef(t, def.Def)
-		require.Equal(t, 0, len(arr))
-	})
-	t.Run("Invalid file list multiple sources", func(t *testing.T) {
-		src := llb.Local("context")
-		dst := llb.Scratch()
-		files := []string{"foo:a:b"}
-
-		state, err := FilesLLB(files, src, dst)
-		require.EqualError(t, err, "Invalid format of the file list to copy")
+		state := FilesLLB(files, src, dst)
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)

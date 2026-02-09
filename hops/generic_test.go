@@ -48,7 +48,7 @@ func TestGenericNew(t *testing.T) {
 			From:     "foo",
 			Path:     "bar",
 			Type:     "initrd",
-			Includes: []string{},
+			Includes: []FileToInclude{},
 		}
 
 		generic := NewGeneric(plat, rootfs)
@@ -91,7 +91,7 @@ func TestGenericGetRootfsType(t *testing.T) {
 			From:     "foo",
 			Path:     "bar",
 			Type:     "initrd",
-			Includes: []string{},
+			Includes: []FileToInclude{},
 		}
 
 		generic := NewGeneric(plat, rootfs)
@@ -146,7 +146,12 @@ func TestGenericCreateRootfs(t *testing.T) {
 			From:     "foo",
 			Path:     "bar",
 			Type:     "raw",
-			Includes: []string{"foo:bar"},
+			Includes: []FileToInclude{
+				{
+					Src: "foo",
+					Dst: "bar",
+				},
+			},
 		}
 
 		generic := NewGeneric(plat, rootfs)
@@ -186,7 +191,16 @@ func TestGenericCreateRootfs(t *testing.T) {
 			From:     "foo",
 			Path:     "bar",
 			Type:     "initrd",
-			Includes: []string{"foo:bar", "ka"},
+			Includes: []FileToInclude{
+				{
+					Src: "foo",
+					Dst: "bar",
+				},
+				{
+					Src: "ka",
+					Dst: "ka",
+				},
+			},
 		}
 
 		generic := NewGeneric(plat, rootfs)
@@ -247,24 +261,6 @@ func TestGenericCreateRootfs(t *testing.T) {
 		toolDgst := tmp.Inputs[0].Digest
 		require.Equal(t, m[toolDgst], arr[0])
 	})
-	t.Run("With raw rootfs type and invalid files structure", func(t *testing.T) {
-		plat := Platform{
-			Version: "1.0",
-			Monitor: "foo",
-			Arch:    "bar",
-		}
-		rootfs := Rootfs{
-			From:     "foo",
-			Path:     "bar",
-			Type:     "initrd",
-			Includes: []string{":bar", "ka"},
-		}
-
-		generic := NewGeneric(plat, rootfs)
-		_, err := generic.CreateRootfs("context")
-		require.Error(t, err)
-		require.ErrorContains(t, err, "Invalid format of the file")
-	})
 	t.Run("Invalid rootfs type", func(t *testing.T) {
 		plat := Platform{
 			Version: "1.0",
@@ -275,7 +271,12 @@ func TestGenericCreateRootfs(t *testing.T) {
 			From:     "foo",
 			Path:     "bar",
 			Type:     "qwe",
-			Includes: []string{"foo:bar", "ka"},
+			Includes: []FileToInclude{
+				{
+					Src: "foo",
+					Dst: "bar",
+				},
+			},
 		}
 
 		generic := NewGeneric(plat, rootfs)

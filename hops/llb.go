@@ -15,7 +15,6 @@
 package hops
 
 import (
-	"fmt"
 	"runtime"
 	"strings"
 
@@ -29,22 +28,14 @@ const (
 
 // Create a LLB State that simply copies all the files in the include list inside
 // an empty image
-func FilesLLB(fileList []string, fromState llb.State, toState llb.State) (llb.State, error) {
+func FilesLLB(fileList []FileToInclude, fromState llb.State, toState llb.State) llb.State {
 	retState := llb.Scratch()
 	for i, file := range fileList {
 		var aCopy PackCopies
 
-		parts := strings.Split(file, ":")
 		aCopy.SrcState = fromState
-		aCopy.SrcPath = parts[0]
-		// If user did not define destination path, use the same as the source
-		aCopy.DstPath = parts[0]
-		if len(parts) < 1 || len(parts) > 2 || len(parts[0]) == 0 {
-			return llb.Scratch(), fmt.Errorf("Invalid format of the file list to copy")
-		}
-		if len(parts) == 2 && len(parts[1]) > 0 {
-			aCopy.DstPath = parts[1]
-		}
+		aCopy.SrcPath = file.Src
+		aCopy.DstPath = file.Dst
 		if i == 0 {
 			retState = CopyLLB(toState, aCopy)
 		} else {
@@ -52,7 +43,7 @@ func FilesLLB(fileList []string, fromState llb.State, toState llb.State) (llb.St
 		}
 	}
 
-	return retState, nil
+	return retState
 }
 
 // Create a LLB State that constructs a cpio file with the data in the content

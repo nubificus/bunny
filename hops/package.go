@@ -39,11 +39,16 @@ type Platform struct {
 	Arch      string `yaml:"architecture"`
 }
 
+type FileToInclude struct {
+	Src string `yaml:"source"`
+	Dst string `yaml:"destination"`
+}
+
 type Rootfs struct {
-	From     string   `yaml:"from"`
-	Path     string   `yaml:"path"`
-	Type     string   `yaml:"type"`
-	Includes []string `yaml:"include"`
+	From     string          `yaml:"from"`
+	Path     string          `yaml:"path"`
+	Type     string          `yaml:"type"`
+	Includes []FileToInclude `yaml:"include"`
 }
 
 type Kernel struct {

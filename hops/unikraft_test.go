@@ -48,7 +48,7 @@ func TestUnikraftNew(t *testing.T) {
 			From:     "foo",
 			Path:     "bar",
 			Type:     "raw",
-			Includes: []string{},
+			Includes: []FileToInclude{},
 		}
 
 		unikraft := NewUnikraft(plat, rootfs)
@@ -91,7 +91,7 @@ func TestUnikraftGetRootfsType(t *testing.T) {
 			From:     "foo",
 			Path:     "bar",
 			Type:     "raw",
-			Includes: []string{},
+			Includes: []FileToInclude{},
 		}
 
 		unikraft := NewUnikraft(plat, rootfs)
@@ -168,7 +168,12 @@ func TestUnikraftCreateRootfs(t *testing.T) {
 		rootfs := Rootfs{
 			From:     "scratch",
 			Type:     "initrd",
-			Includes: []string{"foo:bar"},
+			Includes: []FileToInclude{
+				{
+					Src: "foo",
+					Dst: "bar",
+				},
+			},
 		}
 
 		unikraft := NewUnikraft(plat, rootfs)
@@ -218,24 +223,6 @@ func TestUnikraftCreateRootfs(t *testing.T) {
 		// the tools
 		toolDgst := tmp.Inputs[0].Digest
 		require.Equal(t, m[toolDgst], arr[0])
-	})
-	t.Run("Invalid files structure", func(t *testing.T) {
-		plat := Platform{
-			Version: "1.0",
-			Monitor: "foo",
-			Arch:    "bar",
-		}
-		rootfs := Rootfs{
-			From:     "foo",
-			Path:     "bar",
-			Type:     "initrd",
-			Includes: []string{":bar", "ka"},
-		}
-
-		unikraft := NewUnikraft(plat, rootfs)
-		_, err := unikraft.CreateRootfs("context")
-		require.Error(t, err)
-		require.ErrorContains(t, err, "Invalid format of the file")
 	})
 }
 

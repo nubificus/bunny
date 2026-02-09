@@ -148,7 +148,12 @@ func TestPackHandleRootfs(t *testing.T) {
 		r := Rootfs{
 			From:     "local",
 			Path:     "rootfs",
-			Includes: []string{"foo:bar"},
+			Includes: []FileToInclude{
+				{
+					Src: "foo",
+					Dst: "bar",
+				},
+			},
 		}
 		f := NewGeneric(p, r)
 
@@ -171,7 +176,12 @@ func TestPackHandleRootfs(t *testing.T) {
 		}
 		r := Rootfs{
 			From:     "scratch",
-			Includes: []string{"foo:bar"},
+			Includes: []FileToInclude{
+				{
+					Src: "foo",
+					Dst: "bar",
+				},
+			},
 		}
 		f := NewUnikraft(p, r)
 
@@ -198,7 +208,12 @@ func TestPackHandleRootfs(t *testing.T) {
 		r := Rootfs{
 			From:     "",
 			Type:     "raw",
-			Includes: []string{"foo:bar"},
+			Includes: []FileToInclude{
+				{
+					Src: "foo",
+					Dst: "bar",
+				},
+			},
 		}
 		f := NewGeneric(p, r)
 
@@ -929,7 +944,12 @@ func TestPackToPack(t *testing.T) {
 			},
 			Rootfs: Rootfs{
 				From:     "scratch",
-				Includes: []string{"foo:bar"},
+				Includes: []FileToInclude{
+					{
+						Src: "foo",
+						Dst: "bar",
+					},
+				},
 			},
 			Cmd: []string{"cmd"},
 		}
@@ -986,7 +1006,12 @@ func TestPackToPack(t *testing.T) {
 			},
 			Rootfs: Rootfs{
 				From:     "scratch",
-				Includes: []string{"foo:bar"},
+				Includes: []FileToInclude{
+					{
+						Src: "foo",
+						Dst: "bar",
+					},
+				},
 			},
 			Cmd: []string{"cmd"},
 		}
@@ -1171,7 +1196,12 @@ func TestPackToPack(t *testing.T) {
 			},
 			Rootfs: Rootfs{
 				From:     "scratch",
-				Includes: []string{"foo:bar"},
+				Includes: []FileToInclude{
+					{
+						Src: "foo",
+						Dst: "bar",
+					},
+				},
 			},
 			Cmd: []string{"cmd"},
 		}
@@ -1251,26 +1281,6 @@ func TestPackToPack(t *testing.T) {
 	//	require.ErrorContains(t, err, "unikraft does not support raw rootfs")
 	//	require.Nil(t, i)
 	// })
-	t.Run("Invalid Rootfs from scratch and wrong includes format", func(t *testing.T) {
-		hops := &Hops{
-			Platform: Platform{
-				Framework: "rumprun",
-				Monitor:   "qemu",
-			},
-			Kernel: Kernel{
-				From: "local",
-				Path: "kernel",
-			},
-			Rootfs: Rootfs{
-				From:     "scratch",
-				Includes: []string{":bar"},
-			},
-			Cmd: []string{"cmd"},
-		}
-		i, err := ToPack(hops, "context")
-		require.ErrorContains(t, err, "Error handling rootfs entry")
-		require.Nil(t, i)
-	})
 	t.Run("Invalid empty Kernel", func(t *testing.T) {
 		hops := &Hops{
 			Platform: Platform{

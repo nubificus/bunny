@@ -196,12 +196,6 @@ func TestValidateBunnyfileRootfs(t *testing.T) {
 			expectError: true,
 			errorText:   "Adding files to an existing non-raw rootfs is not yet supported",
 		},
-		{
-			name:        "Invalid include with no source",
-			input:       "///:bar",
-			expectError: true,
-			errorText:   "Invalid syntax in rootf's include",
-		},
 	}
 
 	for _, tc := range tests {
@@ -212,7 +206,19 @@ func TestValidateBunnyfileRootfs(t *testing.T) {
 			rfs.Path = fields[1]
 			rfs.Type = fields[2]
 			if fields[3] != "" {
-				rfs.Includes = []string{fields[3]}
+				ffields := strings.Split(fields[3], ":")
+				require.GreaterOrEqual(t, len(ffields), 1)
+				require.LessOrEqual(t, len(ffields), 2)
+				dst := ffields[0]
+				if len(ffields) == 2 {
+					dst = ffields[1]
+				}
+				rfs.Includes = []FileToInclude{
+					{
+						Src: ffields[0],
+						Dst: dst,
+					},
+				}
 			}
 			err := ValidateRootfs(rfs)
 			if tc.expectError {
