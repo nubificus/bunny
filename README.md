@@ -56,8 +56,10 @@ rootfs:                                         # [4] (Optional) Specifies the r
   from: local                                   # [4a] (Optional) The source or base of the rootfs.
   path: initrd                                  # [4b] (Required if from is not scratch) The path in the source, where the prebuilt rootfs file resides.
   type: initrd                                  # [4c] (optional) The type of rootfs (e.g. initrd, raw, block)
-  include:                                      # [4d] (Optional) A list of local files to include in the rootfs
-    - src:dst
+  include:                                      # [4d] (Optional) A list of local files to include in the rootfs. Two formats are supported:
+    - src:dst                                   #      Using ':' to separate source and destination.
+    - Source: <src>                             #      Specifying Source and Destination as separate fields in one entry.
+      Destination: <dst>
 
 kernel:                                         # [5] Specify a prebuilt kernel to use
   from: local                                   # [5a] Specify the source of a prebuilt kernel.
@@ -87,7 +89,7 @@ The fields of `bunnyfile` in more details:
 | 4a  | Base image or location containing a rootfs | no | `"scratch"`, `"local"`, `"OCI image"` | `"scratch"` |
 | 4b  | Path to rootfs file (relative to `from`) | yes, if `from == "local"` | file path | - |
 | 4c  | Type of the rootfs | no | `"raw"`, `"initrd"` | platform-dependent |
-| 4d  | Files from build context to include in rootfs | no | list of `build-path:rootfs-path` | - |
+| 4d  | Files from build context to include in rootfs | no | list of `local-path:rootfs-path`or list of specific Source, Destination entries | - |
 | 5   | Prebuilt kernel information | yes | - | - |
 | 5a  | Location of the prebuilt kernel | yes | `"local"`, `"OCI image"` | - |
 | 5b  | Path to kernel binary (relative to `from`) | yes | file path | - |

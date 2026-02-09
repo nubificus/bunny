@@ -25,12 +25,46 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func (f *FileToInclude) UnmarshalYAML(node *yaml.Node) error {
+	switch node.Kind {
+	case yaml.ScalarNode:
+		parts := strings.SplitN(node.Value, ":", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid file mapping %q, expected src:dst", node.Value)
+		}
+
+		f.Src = parts[0]
+		f.Dst = parts[0]
+		if len(parts) == 2 && len(parts[1]) != 0 {
+			f.Dst = parts[1]
+		}
+
+		return nil
+	case yaml.MappingNode:
+		var tmp struct {
+			Source string `yaml:"source"`
+			Dest   string `yaml:"destination"`
+		}
+
+		err := node.Decode(&tmp)
+		if err != nil {
+			return err
+		}
+
+		f.Src = tmp.Source
+		f.Dst = tmp.Dest
+		return nil
+	default:
+		return fmt.Errorf("invalid Include file format")
+	}
+}
+
 // ParseBunnyfile reads a yaml file which contains instructions for
 // bunny.
 func ParseBunnyfile(fileBytes []byte) (*Hops, error) {
 	bunnyHops := &Hops{}
 
-	err := yaml.Unmarshal(fileBytes, &bunnyHops)
+	err := yaml.Unmarshal(fileBytes, bunnyHops)
 	if err != nil {
 		return nil, err
 	}
