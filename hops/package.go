@@ -40,8 +40,9 @@ type Platform struct {
 }
 
 type FileToInclude struct {
-	Src string `yaml:"source"`
-	Dst string `yaml:"destination"`
+	From string `yaml:"from"`
+	Src  string `yaml:"source"`
+	Dst  string `yaml:"destination"`
 }
 
 type Rootfs struct {
