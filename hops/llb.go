@@ -28,11 +28,16 @@ const (
 
 // Create a LLB State that simply copies all the files in the include list inside
 // an empty image
-func FilesLLB(fileList []FileToInclude, fromState llb.State, toState llb.State) llb.State {
+func FilesLLB(fileList []FileToInclude, buildContext string, toState llb.State) llb.State {
 	retState := llb.Scratch()
+	local := llb.Local(buildContext)
 	for i, file := range fileList {
 		var aCopy PackCopies
 
+		fromState := local
+		if file.From != "" && file.From != "local" {
+			fromState = llb.Image(file.From)
+		}
 		aCopy.SrcState = fromState
 		aCopy.SrcPath = file.Src
 		aCopy.DstPath = file.Dst

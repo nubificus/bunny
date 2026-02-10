@@ -87,13 +87,12 @@ func (i *UnikraftInfo) SupportsArch(arch string) bool {
 }
 
 func (i *UnikraftInfo) CreateRootfs(buildContext string) (llb.State, error) {
-	local := llb.Local(buildContext)
 	switch i.Rootfs.Type {
 	case "initrd":
-		contentState := FilesLLB(i.Rootfs.Includes, local, llb.Scratch())
+		contentState := FilesLLB(i.Rootfs.Includes, buildContext, llb.Scratch())
 		return InitrdLLB(contentState), nil
 	case "raw":
-		return FilesLLB(i.Rootfs.Includes, local, llb.Scratch()), nil
+		return FilesLLB(i.Rootfs.Includes, buildContext, llb.Scratch()), nil
 	default:
 		// We should never reach this point
 		return llb.Scratch(), fmt.Errorf("Unsupported rootfs type")
@@ -101,13 +100,12 @@ func (i *UnikraftInfo) CreateRootfs(buildContext string) (llb.State, error) {
 }
 
 func (i *UnikraftInfo) UpdateRootfs(buildContext string) (llb.State, error) {
-	local := llb.Local(buildContext)
 	base := llb.Image(i.Rootfs.From)
 	switch i.Rootfs.Type {
 	case "initrd":
 		return llb.Scratch(), fmt.Errorf("Can not update an initrd rootfs")
 	case "raw":
-		return FilesLLB(i.Rootfs.Includes, local, base), nil
+		return FilesLLB(i.Rootfs.Includes, buildContext, base), nil
 	default:
 		// We should never reach this point
 		return llb.Scratch(), fmt.Errorf("Unsupported rootfs type")

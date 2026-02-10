@@ -27,7 +27,6 @@ import (
 
 func TestLLBFiles(t *testing.T) {
 	t.Run("Single file", func(t *testing.T) {
-		src := llb.Local("context")
 		dst := llb.Scratch()
 		files := []FileToInclude{
 			{
@@ -36,7 +35,7 @@ func TestLLBFiles(t *testing.T) {
 			},
 		}
 
-		state := FilesLLB(files, src, dst)
+		state := FilesLLB(files, "context", dst)
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)
@@ -64,7 +63,6 @@ func TestLLBFiles(t *testing.T) {
 		require.Equal(t, "/foo1", cp.Dest)
 	})
 	t.Run("Multiple files", func(t *testing.T) {
-		src := llb.Local("context")
 		dst := llb.Image("foo")
 		files := []FileToInclude{
 			{
@@ -77,7 +75,7 @@ func TestLLBFiles(t *testing.T) {
 			},
 		}
 
-		state := FilesLLB(files, src, dst)
+		state := FilesLLB(files, "context", dst)
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)
@@ -113,11 +111,10 @@ func TestLLBFiles(t *testing.T) {
 		require.Equal(t, "docker-image://docker.io/library/foo:latest", d.Identifier)
 	})
 	t.Run("Empty files list", func(t *testing.T) {
-		src := llb.Local("context")
 		dst := llb.Scratch()
 		files := []FileToInclude{}
 
-		state := FilesLLB(files, src, dst)
+		state := FilesLLB(files, "context", dst)
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)

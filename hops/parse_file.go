@@ -29,10 +29,11 @@ func (f *FileToInclude) UnmarshalYAML(node *yaml.Node) error {
 	switch node.Kind {
 	case yaml.ScalarNode:
 		parts := strings.SplitN(node.Value, ":", 2)
-		if len(parts) != 2 {
-			return fmt.Errorf("invalid file mapping %q, expected src:dst", node.Value)
+		if len(parts[0]) == 0 {
+			return fmt.Errorf("invalid file mapping %q, src is empty", node.Value)
 		}
 
+		f.From = "local"
 		f.Src = parts[0]
 		f.Dst = parts[0]
 		if len(parts) == 2 && len(parts[1]) != 0 {
@@ -41,18 +42,26 @@ func (f *FileToInclude) UnmarshalYAML(node *yaml.Node) error {
 
 		return nil
 	case yaml.MappingNode:
-		var tmp struct {
-			Source string `yaml:"source"`
-			Dest   string `yaml:"destination"`
-		}
+		type auxInclude FileToInclude
+		var tmp auxInclude
 
 		err := node.Decode(&tmp)
 		if err != nil {
 			return err
 		}
+		if len(tmp.Src) == 0 {
+			return fmt.Errorf("invalid file mapping at line %d, column %d: source is empty (from=%q, destination=%q)", node.Line, node.Column, tmp.From, tmp.Dst)
+		}
+		if len(tmp.Dst) == 0 {
+			return fmt.Errorf("invalid file mapping at line %d, column %d: destination is empty (from=%q, source=%q)", node.Line, node.Column, tmp.From, tmp.Src)
+		}
 
-		f.Src = tmp.Source
-		f.Dst = tmp.Dest
+		f.From = tmp.From
+		if len(tmp.From) == 0 {
+			f.From = "local"
+		}
+		f.Src = tmp.Src
+		f.Dst = tmp.Dst
 		return nil
 	default:
 		return fmt.Errorf("invalid Include file format")
