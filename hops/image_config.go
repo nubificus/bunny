@@ -89,7 +89,7 @@ func (rc *ResultAndConfig) SetConfig(annots map[string]string, cfg dockerspec.Do
 	rc.OCIConfig.Platform = plat
 	rc.OCIConfig.RootFS = rfs
 	rc.OCIConfig.Config = copyToOCIImageConfig(cfg)
-	rc.OCIConfig.Config.Entrypoint = []string{"/urunit"}
+	rc.OCIConfig.Config.Entrypoint = append([]string{"/urunit"}, rc.OCIConfig.Config.Entrypoint...)
 	if rc.OCIConfig.Config.Labels == nil {
 		rc.OCIConfig.Config.Labels = make(map[string]string)
 	}
