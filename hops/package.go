@@ -16,8 +16,6 @@ package hops
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"runtime"
 	"strings"
@@ -380,21 +378,21 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 		return nil, fmt.Errorf("Error handling rootfs entry: %v", err)
 	}
 
-	kPath, rPath, err := instr.SetBaseAndGetPaths(appEntry, kernelEntry, rootfsEntry)
+	_, _, err = instr.SetBaseAndGetPaths(appEntry, kernelEntry, rootfsEntry)
 	if err != nil {
 		return nil, fmt.Errorf("Error choosing base state: %v", err)
 	}
 
 	// Handle the empty rootfs case. In that case, we do not need to set up
 	// any annotations for rootfs and hence the type is set to empty.string
-	rType := ""
-	if rootfsEntry.SourceRef != "" {
-		rType = framework.GetRootfsType()
-	}
-	err = instr.SetAnnotations(h.Platform, h.Cmd, kPath, rPath, rType)
-	if err != nil {
-		return nil, fmt.Errorf("Error setting annotations: %v", err)
-	}
+	//rType := ""
+	//if rootfsEntry.SourceRef != "" {
+	//	rType = framework.GetRootfsType()
+	//}
+	//err = instr.SetAnnotations(h.Platform, h.Cmd, kPath, rPath, rType)
+	//if err != nil {
+	//	return nil, fmt.Errorf("Error setting annotations: %v", err)
+	//}
 
 	instr.UpdateConfig(h.Cmd, h.Entrypoint, h.Envs, h.Platform)
 
@@ -403,29 +401,15 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 
 // PackLLB gets a PackInstructions struct and transforms it to an LLB definition
 func PackLLB(instr PackInstructions) (*llb.Definition, error) {
-	var base llb.State
-	uruncJSON := make(map[string]string)
-	base = instr.Base
-
-	// Create urunc.json file, since annotations do not reach urunc
-	for annot, val := range instr.Annots {
-		encoded := base64.StdEncoding.EncodeToString([]byte(val))
-		uruncJSON[annot] = string(encoded)
-	}
-	uruncJSONBytes, err := json.Marshal(uruncJSON)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to marshal urunc json: %v", err)
-	}
+	base := instr.Base
 
 	// Perform any copies inside the image
 	for _, aCopy := range instr.Copies {
 		base = CopyLLB(base, aCopy)
 	}
 
-	// Create the urunc.json file in the rootfs
-	base = base.File(llb.Mkfile(uruncJSONPath, 0644, uruncJSONBytes))
-
 	var dt *llb.Definition
+	var err error
 	switch runtime.GOARCH {
 	case "amd64":
 		dt, err = base.Marshal(context.TODO(), llb.LinuxAmd64)
