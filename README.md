@@ -1,7 +1,7 @@
-# Bunny: Build and package unikernels like containers
+# Bunny: Build and package unikernels and WASM like containers
 
-Welcome to `bunny`, a tool that promises to make the building of unikernels as
-easy an building containers.
+Welcome to `bunny`, a tool that helps with building WASM and unikernels, hoping
+to make it as easy an building containers.
 
 ## Table of Contents
 
@@ -37,7 +37,7 @@ unikernels from scratch.
 
 ## The `bunnyfile`
 
-In order to instruct `bunny` how to build and package unikernels, we have
+In order to instruct `bunny` how to build and package unikernels and WASM, we have
 defined a yaml-based file, called `bunnyfile`. You can think of `bunnyfile` as
 the equivalent of `Dockerfile` for containers. The currently supported fields of
 the `bunnyfile` are the following:
@@ -47,12 +47,12 @@ the `bunnyfile` are the following:
 version: v0.1                                   # [2] Bunnyfile version.
 
 platforms:                                      # [3] The target platform for building/packaging.
-  framework: unikraft                           # [3a] The unikernel framework.
-  version: v0.15.0                              # [3b] The version of the unikernel framework.
-  monitor: qemu                                 # [3c] The hypervisor/VMM or any other kind of monitor.
+  framework: unikraft                           # [3a] The unikernel/WASM framework.
+  version: v0.15.0                              # [3b] The version of the unikernel/WASM framework.
+  monitor: qemu                                 # [3c] The sandbox/VM monitor or WASM sandbox
   architecture: x86                             # [3d] The target architecture.
 
-rootfs:                                         # [4] (Optional) Specifies the rootfs of the unikernel.
+rootfs:                                         # [4] (Optional) Specifies the rootfs of the unikernel / WASM module.
   from: local                                   # [4a] (Optional) The source or base of the rootfs.
   path: initrd                                  # [4b] (Required if from is not scratch) The path in the source, where the prebuilt rootfs file resides.
   type: initrd                                  # [4c] (optional) The type of rootfs (e.g. initrd, raw, block)
@@ -62,16 +62,21 @@ rootfs:                                         # [4] (Optional) Specifies the r
       source: <src>
       destination: <dst>
 
-kernel:                                         # [5] Specify a prebuilt kernel to use
+kernel:                                         # [5] (Optional) Specify a prebuilt kernel to use
   from: local                                   # [5a] Specify the source of a prebuilt kernel.
   path: local                                   # [5b] The path where the kernel image resides.
 
-envs:                                           # [6] A list with all environment variables
+app:                                            # [6] Specify the details of an application to build
+  name: hello                                   # [6a] Specify the name of the application
+  from: local                                   # [6a] Specify the source code of the application
+  language: C                                   # [6b] Specify the language of the application
+
+envs:                                           # [7] A list with all environment variables
   - HOME=/home/ubuntu
 
-cmd: ["app"]                                    # [7] The command line arguments of the app
+cmd: ["app"]                                    # [8] The command line arguments of the app
 
-entrypoint: ["init"]                            # [8] The entrypoint of the container
+entrypoint: ["init"]                            # [9] The entrypoint of the container
 
 ```
 
@@ -91,12 +96,16 @@ The fields of `bunnyfile` in more details:
 | 4b  | Path to rootfs file (relative to `from`) | yes, if `from == "local"` | file path | - |
 | 4c  | Type of the rootfs | no | `"raw"`, `"initrd"` | platform-dependent |
 | 4d  | Files from local build context or other oci images to include in rootfs | no | list of `local-path:rootfs-path` or list of specific `from`, `source`, `destination` entries | - |
-| 5   | Prebuilt kernel information | yes | - | - |
-| 5a  | Location of the prebuilt kernel | yes | `"local"`, `"OCI image"` | - |
-| 5b  | Path to kernel binary (relative to `from`) | yes | file path | - |
-| 6   | Environment variables | no | list of `KEY:VALUE` strings | - |
-| 7   | Command line of the application | no | `[string, string, ...]` | - |
-| 8   | Entrypoint of the container | no | `[string, string, ...]` | - |
+| 5   | Prebuilt kernel information | no | - | - |
+| 5a  | Location of the prebuilt kernel | no | `"local"`, `"OCI image"` | - |
+| 5b  | Path to kernel binary (relative to `from`) | no | file path | - |
+| 6   | App to build information | yes | - | - |
+| 6a  | Name of the application | yes | - | - |
+| 6b  | Location of the source code of the app | yes | `"local"`, `"OCI image"` | - |
+| 6c  | The language of the application | yes | - | - |
+| 7   | Environment variables | no | list of `KEY:VALUE` strings | - |
+| 8   | Command line of the application | no | `[string, string, ...]` | - |
+| 9   | Entrypoint of the container | no | `[string, string, ...]` | - |
 
 ### The `rootfs` field
 
@@ -164,14 +173,37 @@ the following:
   destination: <path_inside_the_rootfs>
 ```
 
-> **_NOTE:_**  Except of the `bunnyfile`, `bunny` supports the Dockerfile-like
-> file that
-> [pun](https://github.com/nubificus/pun?tab=readme-ov-file#the-containerfile-format)
-> and
-> [bima](https://github.com/nubificus/bima?tab=readme-ov-file#how-bima-works)
-> takes as input. However, the Dockerfile-like syntex is limited only to
-> packaging existing unikernels. With the `bunnyfile`, `bunny` is able to
-> provide much more functionalities and features.
+### The `app` field
+
+In order to build WASM modules with `bunny`, the app field of `bunnyfile` should
+be defined. In this field, the users specify information for the building process
+of the application.
+
+#### The `name` field
+
+This field msimply specifies the name of the application. For the time being it does
+not affect the building process, but it might do in the future.
+
+#### The `from` field
+
+In this field, we instruct `bunny` where to find the source code of the application.
+It is similar to the Dockerfile's `FROM` instruction, but in `bunny` the "scratch"
+is not really helpful. Therefore, this field can have one of the following values:
+
+- **local**": we can use this value if the source code resides in
+  the local build context of `bunny`.
+- **OCI image**: an OCI image where the source code resides.
+
+> **_NOTE:_**  The source codes needs to be in the top directory of the OCI image (e.g. "/")
+
+#### The `language` field
+
+THis field specifies the language in which the application is written. This is
+important for `bunny` to choose the necessary toolset. Currently supported languages:
+
+- **C**: C/C++ based applications. The application should be built using a makefile,
+  which uses `CC` as a compailer and accepts appending `CFLAGS` and `LDFLAGS`.
+- **rust**: Rust based applications
 
 ## Containerfile-like syntaxes
 
