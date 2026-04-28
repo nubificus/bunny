@@ -163,7 +163,7 @@ func ParseContainerfile(fileBytes []byte, buildContext string) (*PackInstruction
 		case *instructions.EnvCommand:
 			for _, kvp := range c.Env {
 				eVar := kvp.Key + "=" + kvp.Value
-				instr.Config.EnVars = append(instr.Config.EnVars, eVar)
+				instr.Config.Env = append(instr.Config.Env, eVar)
 			}
 		case instructions.Command:
 			// Catch all other commands

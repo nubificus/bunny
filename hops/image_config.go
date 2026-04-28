@@ -74,7 +74,7 @@ func (rc *ResultAndConfig) GetBaseConfig(ctx context.Context, c client.Client, r
 	return nil
 }
 
-func (rc *ResultAndConfig) UpdateConfig(annots map[string]string, cmd []string, entryp []string, ev []string) {
+func (rc *ResultAndConfig) UpdateConfig(annots map[string]string, imageConfig ocispecs.ImageConfig) {
 	plat := ocispecs.Platform{
 		Architecture: runtime.GOARCH,
 		OS:           "linux",
@@ -87,13 +87,16 @@ func (rc *ResultAndConfig) UpdateConfig(annots map[string]string, cmd []string, 
 	// and initialize empty configs.
 	rc.OCIConfig.Platform = plat
 	rc.OCIConfig.RootFS = rfs
-	if len(cmd) > 0 {
-		rc.OCIConfig.Config.Cmd = cmd
+	if len(imageConfig.Cmd) > 0 {
+		rc.OCIConfig.Config.Cmd = imageConfig.Cmd
 	}
-	if len(entryp) > 0 {
-		rc.OCIConfig.Config.Entrypoint = entryp
+	if len(imageConfig.Entrypoint) > 0 {
+		rc.OCIConfig.Config.Entrypoint = imageConfig.Entrypoint
 	}
-	rc.OCIConfig.Config.Env = append(rc.OCIConfig.Config.Env, ev...)
+	rc.OCIConfig.Config.Env = append(rc.OCIConfig.Config.Env, imageConfig.Env...)
+	// Copy other ImageConfig fields
+	rc.OCIConfig.Config.User = imageConfig.User
+	rc.OCIConfig.Config.WorkingDir = imageConfig.WorkingDir
 
 	if rc.OCIConfig.Config.Labels == nil {
 		rc.OCIConfig.Config.Labels = make(map[string]string)
