@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/moby/buildkit/client/llb"
+	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 const (
@@ -83,12 +84,8 @@ type PackConfig struct {
 	BaseRef string
 	// The monitor on top of the guest will execute
 	Monitor string
-	// The Entrypoint of the container image
-	Entrypoint []string
-	// The arguments of the entrypoint
-	Cmd []string
-	// The environment variables set by the user
-	EnVars []string
+	// OCI ImageConfig with standard image configuration fields
+	ocispecs.ImageConfig
 }
 
 type PackInstructions struct {
@@ -316,12 +313,12 @@ func (i *PackInstructions) SetAnnotations(p Platform, cmd []string, kernelPath s
 }
 
 // UpdateConfig fills all the information given by the user for the
-// fileds in PackConfig.
+// fields in PackConfig.
 func (i *PackInstructions) UpdateConfig(cmd []string, entryp []string, ev []string, p Platform) {
 	i.Config.Cmd = cmd
 	i.Config.Entrypoint = entryp
+	i.Config.Env = ev
 	i.Config.Monitor = p.Monitor
-	i.Config.EnVars = ev
 }
 
 // ToPack converts Hops into PackInstructions

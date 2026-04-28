@@ -146,7 +146,7 @@ func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) 
 
 	// Set some default values in the Image config
 	// and add cmdline and Labels
-	rc.UpdateConfig(packInst.Annots, packInst.Config.Cmd, packInst.Config.Entrypoint, packInst.Config.EnVars)
+	rc.UpdateConfig(packInst.Annots, packInst.Config.ImageConfig)
 
 	// Apply annotations and the new config to the solver's result
 	err = rc.ApplyConfig(packInst.Annots)
