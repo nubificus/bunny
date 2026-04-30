@@ -319,7 +319,7 @@ func TestParsefile(t *testing.T) {
 		{
 			name: "Valid Containerfile",
 			input: []byte(`#syntax=foo
-FROM foo
+FROM scratch
 COPY foo bar
 LABEL foo=bar
 `),
@@ -333,7 +333,7 @@ LABEL foo=bar
 
 
 
-FROM foo
+FROM scratch
 COPY foo bar
 LABEL foo=bar
 `),
@@ -391,10 +391,10 @@ cmdline: "foo bar"
 			name: "Invalid Containerfile unsupported command",
 			input: []byte(`#syntax=foo
 FROM foo
-RUN bar
+WHAT
 `),
 			expectError: true,
-			errorText:   "Unsupported command",
+			errorText:   "failed to parse",
 		},
 		{
 			name: "Invalid bunnyfile missing platform",
@@ -409,13 +409,13 @@ cmdline: "foo bar"
 			name:        "Invalid file single line",
 			input:       []byte(`#syntax=foo`),
 			expectError: true,
-			errorText:   "Invalid format of file",
+			errorText:   "The version field is necessary",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			i, err := ParseFile(tc.input, "foo")
+			i, err := ParseFile(context.TODO(), tc.input, "foo", nil)
 			if tc.expectError {
 				require.Error(t, err, "Expected an error, got nil")
 				require.Nil(t, i)
