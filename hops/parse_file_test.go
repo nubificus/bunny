@@ -264,7 +264,7 @@ FROM foo
 WHAT
 `),
 			expectError: true,
-			errorText:   "failed to parse",
+			errorText:   "while parsing as containerfile",
 		},
 		{
 			name: "Invalid bunnyfile missing platform",

@@ -16,12 +16,14 @@ package hops
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/frontend/dockerfile/dockerfile2llb"
 	"github.com/moby/buildkit/frontend/gateway/client"
+	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,6 +31,11 @@ const (
 	defaultUrunitImage string = "harbor.nbfc.io/nubificus/urunit:latest"
 	defaultUrunitPath  string = "/urunit"
 	defaultKernelImage string = "harbor.nbfc.io/nubificus/urunc/linux-kernel-qemu:latest"
+)
+
+var (
+	errInvalidFileFormat = errors.New("invalid format of input file")
+	errInvalidBunnyfile  = errors.New("invalid bunnyfile format")
 )
 
 func (f *FileToInclude) UnmarshalYAML(node *yaml.Node) error {
@@ -81,22 +88,22 @@ func ParseBunnyfile(fileBytes []byte) (*Hops, error) {
 
 	err := yaml.Unmarshal(fileBytes, bunnyHops)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(errInvalidFileFormat, err)
 	}
 
 	err = CheckBunnyfileVersion(bunnyHops.Version)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(errInvalidBunnyfile, err)
 	}
 
 	err = ValidatePlatform(bunnyHops.Platform)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(errInvalidBunnyfile, err)
 	}
 
 	err = ValidateKernel(bunnyHops.Kernel)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(errInvalidBunnyfile, err)
 	}
 
 	// Set default value of from to scratch
@@ -106,7 +113,7 @@ func ParseBunnyfile(fileBytes []byte) (*Hops, error) {
 	}
 	err = ValidateRootfs(bunnyHops.Rootfs)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(errInvalidBunnyfile, err)
 	}
 
 	// TODO: Remove this in next release.
@@ -119,49 +126,41 @@ func ParseBunnyfile(fileBytes []byte) (*Hops, error) {
 	return bunnyHops, nil
 }
 
-// ParseFile tries to first parse the given file using dockerfile2LLB.
-// If that fails, then it attempts to read it using the bunnyfile format.
-func ParseFile(ctx context.Context, fileBytes []byte, buildContext string, c client.Client) (*PackInstructions, error) {
-	// Try to parse the file with dockerfile2LLB
-	state, img, _, _, derr := dockerfile2llb.Dockerfile2LLB(ctx, fileBytes, dockerfile2llb.ConvertOpt{
-		MetaResolver: c,
-	})
-	if derr != nil {
-		// Could not parse Containerfile-like syntax file.
-		// Try bunnyfile syntax.
-		hops, err := ParseBunnyfile(fileBytes)
-		if err != nil {
-			// TODO: Handle which error should be shown
-			// For contianerfile or bunnyfile?
-			return nil, fmt.Errorf("failed to parse inout file: %w", err)
-		}
-
-		packInst, err := ToPack(hops, buildContext)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert hops to pack instructions: %w", err)
-		}
-
-		// Get the OCI Image config of the base Image if there is any
-		baseConfig, err := getBaseConfig(ctx, c, packInst.BaseRef, packInst.Annots["com.urunc.unikernel.hypervisor"])
-		if err != nil {
-			return nil, fmt.Errorf("Failed to get OCI config of base image %s: %w", packInst.BaseRef, err)
-		}
-
-		if len(packInst.Img.Config.Cmd) > 0 {
-			baseConfig.Cmd = packInst.Img.Config.Cmd
-		}
-		if len(packInst.Img.Config.Entrypoint) > 0 {
-			baseConfig.Entrypoint = packInst.Img.Config.Entrypoint
-		}
-		baseConfig.Env = append(baseConfig.Env, packInst.Img.Config.Env...)
-		packInst.Img.Config = baseConfig
-
-		// Get the OCI Image config of the base Image if there is any
-		packInst.Img = updateImage(packInst.Img, packInst.Annots)
-
-		return packInst, nil
+func hopsToPack(ctx context.Context, fileBytes []byte, buildContext string, c client.Client) (*PackInstructions, error) {
+	// Could not parse Containerfile-like syntax file.
+	// Try bunnyfile syntax.
+	hops, err := ParseBunnyfile(fileBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed while parsing as bunnyfile: %w", err)
 	}
 
+	packInst, err := ToPack(hops, buildContext)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert hops to pack instructions: %w", err)
+	}
+
+	// Get the OCI Image config of the base Image if there is any
+	baseConfig, err := getBaseConfig(ctx, c, packInst.BaseRef, packInst.Annots["com.urunc.unikernel.hypervisor"])
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get OCI config of base image %s: %w", packInst.BaseRef, err)
+	}
+
+	if len(packInst.Img.Config.Cmd) > 0 {
+		baseConfig.Cmd = packInst.Img.Config.Cmd
+	}
+	if len(packInst.Img.Config.Entrypoint) > 0 {
+		baseConfig.Entrypoint = packInst.Img.Config.Entrypoint
+	}
+	baseConfig.Env = append(baseConfig.Env, packInst.Img.Config.Env...)
+	packInst.Img.Config = baseConfig
+
+	// Get the OCI Image config of the base Image if there is any
+	packInst.Img = updateImage(packInst.Img, packInst.Annots)
+
+	return packInst, nil
+}
+
+func containerfileToPack(state *llb.State, img *dockerspec.DockerOCIImage) (*PackInstructions, error) {
 	instr := new(PackInstructions)
 	instr.Base = *state
 	instr.Img = img.Image
@@ -205,4 +204,28 @@ func ParseFile(ctx context.Context, fileBytes []byte, buildContext string, c cli
 	}
 
 	return instr, nil
+}
+
+// ParseFile tries to first parse the given file using dockerfile2LLB.
+// If that fails, then it attempts to read it using the bunnyfile format.
+func ParseFile(ctx context.Context, fileBytes []byte, buildContext string, c client.Client) (*PackInstructions, error) {
+	// Try to parse the file with dockerfile2LLB
+	state, img, _, _, derr := dockerfile2llb.Dockerfile2LLB(ctx, fileBytes, dockerfile2llb.ConvertOpt{
+		MetaResolver: c,
+	})
+	if derr == nil {
+		return containerfileToPack(state, img)
+	}
+	derr = fmt.Errorf("error while parsing as containerfile: %w", derr)
+
+	pInstr, berr := hopsToPack(ctx, fileBytes, buildContext, c)
+	if berr != nil {
+		if errors.Is(berr, errInvalidFileFormat) {
+			return nil, errors.Join(berr, derr)
+		}
+
+		return nil, berr
+	}
+
+	return pInstr, nil
 }
