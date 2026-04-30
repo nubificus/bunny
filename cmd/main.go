@@ -128,33 +128,21 @@ func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) 
 		return nil, fmt.Errorf("Could not create LLB definition: %v", err)
 	}
 
-	rc := &hops.ResultAndConfig{}
-
 	// Pass LLB to buildkit
-	rc.Res, err = c.Solve(ctx, client.SolveRequest{
+	buildkitRes, err := c.Solve(ctx, client.SolveRequest{
 		Definition: dt.ToPB(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("Failed to resolve LLB: %v", err)
 	}
 
-	// Get the OCI Image config of the base Image if there is any
-	err = rc.GetBaseConfig(ctx, c, packInst.Config.BaseRef, packInst.Config.Monitor)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get OCI config of base image: %v", err)
-	}
-
-	// Set some default values in the Image config
-	// and add cmdline and Labels
-	rc.UpdateConfig(packInst.Annots, packInst.Config.ImageConfig)
-
 	// Apply annotations and the new config to the solver's result
-	err = rc.ApplyConfig(packInst.Annots)
+	err = hops.ApplyConfig(buildkitRes, packInst.Annots, packInst.Img)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to annotate final image: %v", err)
 	}
 
-	return rc.Res, nil
+	return buildkitRes, nil
 }
 
 func main() {
