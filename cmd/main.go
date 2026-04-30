@@ -117,7 +117,7 @@ func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) 
 	}
 
 	// Parse packaging/building instructions
-	packInst, err := hops.ParseFile(fileBytes, buildContextName)
+	packInst, err := hops.ParseFile(ctx, fileBytes, buildContextName, c)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing building instructions: %v", err)
 	}
@@ -194,7 +194,8 @@ func main() {
 	}
 
 	// Parse file with packaging/building instructions
-	packInst, err = hops.ParseFile(CntrFileContent, buildContextName)
+	ctx := context.Background()
+	packInst, err = hops.ParseFile(ctx, CntrFileContent, buildContextName, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: Could not parse building instructions: %v\n", err)
 		os.Exit(1)

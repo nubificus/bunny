@@ -16,13 +16,21 @@ package hops
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/moby/buildkit/client/llb"
+	"github.com/moby/buildkit/frontend/dockerfile/dockerfile2llb"
 	"github.com/moby/buildkit/frontend/dockerfile/instructions"
 	"github.com/moby/buildkit/frontend/dockerfile/parser"
 	"gopkg.in/yaml.v3"
+)
+
+const (
+	defaultUrunitImage string = "harbor.nbfc.io/nubificus/urunit:latest"
+	defaultUrunitPath  string = "/urunit"
+	defaultKernelImage string = "harbor.nbfc.io/nubificus/urunc/linux-kernel-qemu:latest"
 )
 
 func (f *FileToInclude) UnmarshalYAML(node *yaml.Node) error {
@@ -191,31 +199,71 @@ func ParseContainerfile(fileBytes []byte, buildContext string) (*PackInstruction
 	return instr, nil
 }
 
-// ParseFile identifies the format of the given file and either calls
-// ParseContainerfile or ParseBunnyfile
-func ParseFile(fileBytes []byte, buildContext string) (*PackInstructions, error) {
-	lines := bytes.Split(fileBytes, []byte("\n"))
-
-	// First line is always the #syntax
-	if len(lines) <= 1 {
-		return nil, fmt.Errorf("Invalid format of file")
-	}
-
-	// Simply check if the first non-empty line starts with FROM
-	// If it starts we assume a Dockerfile
-	// otherwise a bunnyfile
-	for _, line := range lines[1:] {
-		if len(bytes.TrimSpace(line)) > 0 {
-			if strings.HasPrefix(string(line), "FROM") {
-				return ParseContainerfile(fileBytes, buildContext)
-			}
-			break
+// ParseFile tries to first parse the given file using dockerfile2LLB.
+// If that fails, then it attempts to read it using the bunnyfile format.
+func ParseFile(ctx context.Context, fileBytes []byte, buildContext string, resolver llb.ImageMetaResolver) (*PackInstructions, error) {
+	// Try to parse the file with dockerfile2LLB
+	state, img, _, _, derr := dockerfile2llb.Dockerfile2LLB(ctx, fileBytes, dockerfile2llb.ConvertOpt{
+		MetaResolver: resolver,
+	})
+	if derr != nil {
+		// Could not parse Containerfile-like syntax file.
+		// Try bunnyfile syntax.
+		hops, err := ParseBunnyfile(fileBytes)
+		if err != nil {
+			// TODO: Handle which error should be shown
+			// For contianerfile or bunnyfile?
+			return nil, fmt.Errorf("failed to parse inout file: %w", err)
 		}
+
+		packInst, err := ToPack(hops, buildContext)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert hops to pack instructions: %w", err)
+		}
+
+		return packInst, nil
 	}
 
-	hops, err := ParseBunnyfile(fileBytes)
-	if err != nil {
-		return nil, err
+	instr := new(PackInstructions)
+	instr.Base = *state
+	instr.Config.ImageConfig = img.Config.ImageConfig
+	instr.Annots = make(map[string]string)
+	for k, v := range img.Config.Labels {
+		instr.Annots[k] = v
 	}
-	return ToPack(hops, buildContext)
+
+	// Set default annotations if they are not set
+	if instr.Annots["com.urunc.unikernel.unikernelType"] == "" {
+		instr.Annots["com.urunc.unikernel.unikernelType"] = "linux"
+	}
+	if instr.Annots["com.urunc.unikernel.unikernelType"] == "linux" &&
+		instr.Annots["bunny.urunit"] != "false" {
+		var aCopy PackCopies
+
+		aCopy.SrcState = llb.Image(defaultUrunitImage)
+		aCopy.SrcPath = defaultUrunitPath
+		aCopy.DstPath = defaultUrunitPath
+		instr.Copies = append(instr.Copies, aCopy)
+		instr.Config.Entrypoint = append([]string{"/urunit"}, img.Config.ImageConfig.Entrypoint...)
+	}
+	if instr.Annots["com.urunc.unikernel.hypervisor"] == "" {
+		instr.Annots["com.urunc.unikernel.hypervisor"] = "qemu"
+	}
+	if instr.Annots["com.urunc.unikernel.mountRootfs"] == "" &&
+		instr.Annots["com.urunc.unikernel.initrd"] == "" &&
+		instr.Annots["com.urunc.unikernel.blkMntPoint"] != "/" {
+		instr.Annots["com.urunc.unikernel.mountRootfs"] = "true"
+	}
+	if instr.Annots["com.urunc.unikernel.binary"] == "" {
+		var aCopy PackCopies
+
+		aCopy.SrcState = llb.Image(defaultKernelImage)
+		aCopy.SrcPath = DefaultKernelPath
+		aCopy.DstPath = DefaultKernelPath
+		instr.Copies = append(instr.Copies, aCopy)
+
+		instr.Annots["com.urunc.unikernel.binary"] = DefaultKernelPath
+	}
+
+	return instr, nil
 }
