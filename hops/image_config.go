@@ -28,21 +28,14 @@ import (
 	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-type ResultAndConfig struct {
-	// The result
-	Res *client.Result
-	// The OCI config of the final image
-	OCIConfig ocispecs.Image
-}
-
-func (rc *ResultAndConfig) GetBaseConfig(ctx context.Context, c client.Client, ref string, mon string) error {
+func getBaseConfig(ctx context.Context, c client.Client, ref string, mon string) (ocispecs.ImageConfig, error) {
 	if ref == "" || ref == "scratch" {
-		return nil
+		return ocispecs.ImageConfig{}, nil
 	}
 
 	baseRef, err := reference.ParseNormalizedNamed(ref)
 	if err != nil {
-		return fmt.Errorf("Failed to parse image name %s: %v", ref, err)
+		return ocispecs.ImageConfig{}, fmt.Errorf("failed to parse image name %s: %v", ref, err)
 	}
 	baseImageName := reference.TagNameOnly(baseRef).String()
 
@@ -63,66 +56,55 @@ func (rc *ResultAndConfig) GetBaseConfig(ctx context.Context, c client.Client, r
 			},
 		})
 	if err != nil {
-		return fmt.Errorf("Failed to get image config from %s: %v", baseImageName, err)
+		return ocispecs.ImageConfig{}, fmt.Errorf("failed to get image config from %s: %v", baseImageName, err)
 	}
 
-	err = json.Unmarshal(config, &rc.OCIConfig)
+	var cfg ocispecs.ImageConfig
+	err = json.Unmarshal(config, &cfg)
 	if err != nil {
-		return fmt.Errorf("Failed to unmarshal image config of %ss: %v", baseImageName, err)
+		return ocispecs.ImageConfig{}, fmt.Errorf("failed to unmarshal image config of %s: %v", baseImageName, err)
 	}
 
-	return nil
+	return cfg, nil
 }
 
-func (rc *ResultAndConfig) UpdateConfig(annots map[string]string, imageConfig ocispecs.ImageConfig) {
-	plat := ocispecs.Platform{
+func updateImage(img ocispecs.Image, annots map[string]string) ocispecs.Image {
+	img.Platform = ocispecs.Platform{
 		Architecture: runtime.GOARCH,
 		OS:           "linux",
 	}
-	rfs := ocispecs.RootFS{
-		Type: "layers",
+
+	if img.RootFS.Type == "" {
+		img.RootFS = ocispecs.RootFS{
+			Type: "layers",
+		}
 	}
 
-	// Overwrite platform and rootfs to remove unikraft specific platform
-	// and initialize empty configs.
-	rc.OCIConfig.Platform = plat
-	rc.OCIConfig.RootFS = rfs
-	if len(imageConfig.Cmd) > 0 {
-		rc.OCIConfig.Config.Cmd = imageConfig.Cmd
-	}
-	if len(imageConfig.Entrypoint) > 0 {
-		rc.OCIConfig.Config.Entrypoint = imageConfig.Entrypoint
-	}
-	rc.OCIConfig.Config.Env = append(rc.OCIConfig.Config.Env, imageConfig.Env...)
-	// Copy other ImageConfig fields
-	rc.OCIConfig.Config.User = imageConfig.User
-	rc.OCIConfig.Config.WorkingDir = imageConfig.WorkingDir
-
-	if rc.OCIConfig.Config.Labels == nil {
-		rc.OCIConfig.Config.Labels = make(map[string]string)
+	if img.Config.Labels == nil {
+		img.Config.Labels = make(map[string]string)
 	}
 	for k, v := range annots {
-		rc.OCIConfig.Config.Labels[k] = v
+		img.Config.Labels[k] = v
 	}
+
+	return img
 }
 
-func (rc *ResultAndConfig) ApplyConfig(annots map[string]string) error {
-	res := rc.Res
+func ApplyConfig(res *client.Result, annots map[string]string, image ocispecs.Image) error {
 	ref, err := res.SingleRef()
 	if err != nil {
-		return fmt.Errorf("Failed te get reference build result: %v", err)
+		return fmt.Errorf("Failed to get reference build result: %v", err)
 	}
 
-	imageConfig, err := json.Marshal(rc.OCIConfig)
+	imageConfigJSON, err := json.Marshal(image)
 	if err != nil {
 		return fmt.Errorf("Failed to marshal image config: %v", err)
 	}
-	res.AddMeta(exptypes.ExporterImageConfigKey, imageConfig)
+	res.AddMeta(exptypes.ExporterImageConfigKey, imageConfigJSON)
 	for annot, val := range annots {
 		res.AddMeta(exptypes.AnnotationManifestKey(nil, annot), []byte(val))
 	}
 	res.SetRef(ref)
 
-	rc.Res = res
 	return nil
 }

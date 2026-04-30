@@ -79,24 +79,17 @@ type PackCopies struct {
 	DstPath string
 }
 
-type PackConfig struct {
-	// The reference of the final base image
-	BaseRef string
-	// The monitor on top of the guest will execute
-	Monitor string
-	// OCI ImageConfig with standard image configuration fields
-	ocispecs.ImageConfig
-}
-
 type PackInstructions struct {
 	// The Base image to use
 	Base llb.State
+	// The reference of the final base image
+	BaseRef string
 	// The files to copy inside the final image
 	Copies []PackCopies
 	// Annotations
 	Annots map[string]string
-	// Important information for the configuration of the final image
-	Config PackConfig
+	// OCI ImageConfig with standard image configuration fields
+	Img ocispecs.Image
 }
 
 type PackEntry struct {
@@ -213,11 +206,11 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 		i.Copies = append(i.Copies,
 			makeCopy(*kEntry, DefaultKernelPath))
 		i.Base = llb.Scratch()
-		i.Config.BaseRef = ""
+		i.BaseRef = ""
 		kernelCopy = true
 	default:
 		i.Base = kEntry.SourceState
-		i.Config.BaseRef = kEntry.SourceRef
+		i.BaseRef = kEntry.SourceRef
 	}
 
 	rootfsCopy := false
@@ -233,7 +226,7 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 			rootfsCopy = true
 		} else {
 			i.Base = rEntry.SourceState
-			i.Config.BaseRef = rEntry.SourceRef
+			i.BaseRef = rEntry.SourceRef
 		}
 	case "local":
 		i.Copies = append(i.Copies,
@@ -241,7 +234,7 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 		rootfsCopy = true
 	default:
 		i.Base = rEntry.SourceState
-		i.Config.BaseRef = rEntry.SourceRef
+		i.BaseRef = rEntry.SourceRef
 	}
 
 	// There are cases where both kernel and rootfs come from an existing
@@ -313,12 +306,11 @@ func (i *PackInstructions) SetAnnotations(p Platform, cmd []string, kernelPath s
 }
 
 // UpdateConfig fills all the information given by the user for the
-// fields in PackConfig.
-func (i *PackInstructions) UpdateConfig(cmd []string, entryp []string, ev []string, p Platform) {
-	i.Config.Cmd = cmd
-	i.Config.Entrypoint = entryp
-	i.Config.Env = ev
-	i.Config.Monitor = p.Monitor
+// fields in the OCI image's config
+func (i *PackInstructions) UpdateConfig(cmd []string, entryp []string, ev []string) {
+	i.Img.Config.Cmd = cmd
+	i.Img.Config.Entrypoint = entryp
+	i.Img.Config.Env = ev
 }
 
 // ToPack converts Hops into PackInstructions
@@ -363,7 +355,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 		return nil, fmt.Errorf("Error setting annotations: %v", err)
 	}
 
-	instr.UpdateConfig(h.Cmd, h.Entrypoint, h.Envs, h.Platform)
+	instr.UpdateConfig(h.Cmd, h.Entrypoint, h.Envs)
 
 	return instr, nil
 }

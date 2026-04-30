@@ -15,15 +15,13 @@
 package hops
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"strings"
 
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/frontend/dockerfile/dockerfile2llb"
-	"github.com/moby/buildkit/frontend/dockerfile/instructions"
-	"github.com/moby/buildkit/frontend/dockerfile/parser"
+	"github.com/moby/buildkit/frontend/gateway/client"
 	"gopkg.in/yaml.v3"
 )
 
@@ -121,90 +119,12 @@ func ParseBunnyfile(fileBytes []byte) (*Hops, error) {
 	return bunnyHops, nil
 }
 
-// ParseContainerfile reads a Dockerfile-like file and returns a Hops
-// struct with the info from the file
-func ParseContainerfile(fileBytes []byte, buildContext string) (*PackInstructions, error) {
-	instr := new(PackInstructions)
-	instr.Annots = make(map[string]string)
-	instr.Base = llb.Scratch()
-	BaseString := ""
-
-	r := bytes.NewReader(fileBytes)
-
-	// Parse the Dockerfile
-	parseRes, err := parser.Parse(r)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to parse data as Dockerfile: %v", err)
-	}
-
-	// Traverse Dockerfile commands
-	for _, child := range parseRes.AST.Children {
-		cmd, err := instructions.ParseInstruction(child)
-		if err != nil {
-			return nil, fmt.Errorf("Line %d: %v", child.StartLine, err)
-		}
-		switch c := cmd.(type) {
-		case *instructions.Stage:
-			// Handle FROM
-			if BaseString != "" {
-				return nil, fmt.Errorf("Multi-stage builds are not supported")
-			}
-			BaseString = c.BaseName
-		case *instructions.CopyCommand:
-			// Handle COPY
-			var aCopy PackCopies
-
-			aCopy.SrcState = llb.Local(buildContext)
-			aCopy.SrcPath = c.SourcePaths[0]
-			aCopy.DstPath = c.DestPath
-			instr.Copies = append(instr.Copies, aCopy)
-		case *instructions.LabelCommand:
-			// Handle LABEL annotations
-			for _, kvp := range c.Labels {
-				annotKey := strings.Trim(kvp.Key, "\"")
-				instr.Annots[annotKey] = strings.Trim(kvp.Value, "\"")
-			}
-		case *instructions.CmdCommand:
-			instr.Config.Cmd = c.CmdLine
-		case *instructions.EntrypointCommand:
-			instr.Config.Entrypoint = c.CmdLine
-		case *instructions.EnvCommand:
-			for _, kvp := range c.Env {
-				eVar := kvp.Key + "=" + kvp.Value
-				instr.Config.Env = append(instr.Config.Env, eVar)
-			}
-		case instructions.Command:
-			// Catch all other commands
-			return nil, fmt.Errorf("Unsupported command: %s", c.Name())
-		default:
-			return nil, fmt.Errorf("Not a command type: %s", c)
-		}
-
-	}
-	instr.Base = GetSourceState(BaseString, instr.Annots["com.urunc.unikernel.hypervisor"])
-	// TODO This check also takes place in GetSourceState, so we should merge them
-	if BaseString != "scratch" && BaseString != "" {
-		instr.Config.BaseRef = BaseString
-		instr.Config.Monitor = instr.Annots["com.urunc.unikernel.hypervisor"]
-	}
-
-	// TODO: Remove this in next release.
-	// Keep backwards compatibility and if the CMD in Containerfile
-	// is not set, then the cmdline annotations will be used for the cmd of
-	// the container image.
-	if len(instr.Config.Cmd) == 0 && instr.Annots["com.urunc.unikernel.cmdline"] != "" {
-		instr.Config.Cmd = strings.Split(instr.Annots["com.urunc.unikernel.cmdline"], " ")
-	}
-
-	return instr, nil
-}
-
 // ParseFile tries to first parse the given file using dockerfile2LLB.
 // If that fails, then it attempts to read it using the bunnyfile format.
-func ParseFile(ctx context.Context, fileBytes []byte, buildContext string, resolver llb.ImageMetaResolver) (*PackInstructions, error) {
+func ParseFile(ctx context.Context, fileBytes []byte, buildContext string, c client.Client) (*PackInstructions, error) {
 	// Try to parse the file with dockerfile2LLB
 	state, img, _, _, derr := dockerfile2llb.Dockerfile2LLB(ctx, fileBytes, dockerfile2llb.ConvertOpt{
-		MetaResolver: resolver,
+		MetaResolver: c,
 	})
 	if derr != nil {
 		// Could not parse Containerfile-like syntax file.
@@ -221,12 +141,31 @@ func ParseFile(ctx context.Context, fileBytes []byte, buildContext string, resol
 			return nil, fmt.Errorf("failed to convert hops to pack instructions: %w", err)
 		}
 
+		// Get the OCI Image config of the base Image if there is any
+		baseConfig, err := getBaseConfig(ctx, c, packInst.BaseRef, packInst.Annots["com.urunc.unikernel.hypervisor"])
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get OCI config of base image %s: %w", packInst.BaseRef, err)
+		}
+
+		if len(packInst.Img.Config.Cmd) > 0 {
+			baseConfig.Cmd = packInst.Img.Config.Cmd
+		}
+		if len(packInst.Img.Config.Entrypoint) > 0 {
+			baseConfig.Entrypoint = packInst.Img.Config.Entrypoint
+		}
+		baseConfig.Env = append(baseConfig.Env, packInst.Img.Config.Env...)
+		packInst.Img.Config = baseConfig
+
+		// Get the OCI Image config of the base Image if there is any
+		packInst.Img = updateImage(packInst.Img, packInst.Annots)
+
 		return packInst, nil
 	}
 
 	instr := new(PackInstructions)
 	instr.Base = *state
-	instr.Config.ImageConfig = img.Config.ImageConfig
+	instr.Img = img.Image
+	instr.Img.Config = img.Config.ImageConfig
 	instr.Annots = make(map[string]string)
 	for k, v := range img.Config.Labels {
 		instr.Annots[k] = v
@@ -244,7 +183,7 @@ func ParseFile(ctx context.Context, fileBytes []byte, buildContext string, resol
 		aCopy.SrcPath = defaultUrunitPath
 		aCopy.DstPath = defaultUrunitPath
 		instr.Copies = append(instr.Copies, aCopy)
-		instr.Config.Entrypoint = append([]string{"/urunit"}, img.Config.ImageConfig.Entrypoint...)
+		instr.Img.Config.Entrypoint = append([]string{"/urunit"}, img.Config.ImageConfig.Entrypoint...)
 	}
 	if instr.Annots["com.urunc.unikernel.hypervisor"] == "" {
 		instr.Annots["com.urunc.unikernel.hypervisor"] = "qemu"
