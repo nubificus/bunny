@@ -7,7 +7,7 @@ easy an building containers.
 
 1. [Introduction](#introduction)
 2. [The `bunnyfile`](#the-bunnyfile)
-3. [Containerfile-like syntaxes](#containerfile-like-syntaxes)
+3. [Containerfile syntax support](#containerfile-syntax-support)
 4. [Trying it out](#trying-it-out)
 5. [Supported frameworks](#supported-frameworks)
 6. [Execution modes](#execution-modes)
@@ -30,10 +30,14 @@ packaging unikernels. With `bunny`, a user can simply build an application as a
 unikernel and even package it as an OCI image with all
 necessary metadata to run it with [urunc](https://github.com/nubificus/urunc).
 
-`bunny` is based on [pun](https://github.com/nubificus/pun) a tool that packages
-already built unikernels in OCI images for `urunc`. This functionality is and
-will be supported from `bunny` as well. However, `bunny` is also able to build
-unikernels from scratch.
+`bunny` supports two input file formats for building and packaging unikernels:
+
+1. [`bunnyfile`](#the-bunnyfile) (YAML-based): A structured format tailored for
+   unikernel and kernel building instructions, along with instructions to build
+   various types of rootfs for sandboxes (block, initrd, etc.).
+2. [Containerfile / Dockerfile](#containerfile-syntax-support): Full support for
+   standard Containerfile syntax, allowing the use of familiar Containerfile
+   instructions.
 
 ## The `bunnyfile`
 
@@ -164,31 +168,27 @@ the following:
   destination: <path_inside_the_rootfs>
 ```
 
-> **_NOTE:_**  Except of the `bunnyfile`, `bunny` supports the Dockerfile-like
-> file that
-> [pun](https://github.com/nubificus/pun?tab=readme-ov-file#the-containerfile-format)
-> and
-> [bima](https://github.com/nubificus/bima?tab=readme-ov-file#how-bima-works)
-> takes as input. However, the Dockerfile-like syntex is limited only to
-> packaging existing unikernels. With the `bunnyfile`, `bunny` is able to
-> provide much more functionalities and features.
+## Containerfile syntax support
 
-## Containerfile-like syntaxes
+In addition to the `bunnyfile`, `bunny` also supports building OCI images using
+the standard Containerfile / Dockerfile syntax. However, when using `bunny` the
+result of the building will be an OCI image able to execute on top of `urunc`.
+Therefore, `bunny` will perform the following extra steps compared to the
+default docker's buildkit frontend:
+1. All labels will be also stored as annotations.
+2. Automatic generation of missing `urunc` annotations. The default values will
+   target Linux over Qemu as a sandbox. Therefore, the annotations will be:
+   `com.urunc.unikernel.unikernelType=linux` and
+   `com.urunc.unikernel.hypervisor=qemu`
+3. If not specified through the `urunc` annotations, an extra layer containing
+   the Linux kernel image will be appended with the respective annotation
+   `com.urunc.unikernel.binary`.
+4. Unless disabled by setting `LABEL bunny.urunit=false`, an extra layer
+   containing the latest version of `urunit` will be appended, and the
+   `urunit` binary will be prepended to the entrypoint.
 
-In addition to the `bunnyfile`, `bunny` also supports building OCI images using a
-traditional Containerfile-like syntax. However, in this format, `bunny` can only
-package existing files; it does not support generating or modifying them. As a
-result, the set of supported instructions is limited to the following:
-
-- `FROM`: Specifies the base image, it can be an existing OCI image or `scratch`
-- `COPY`: Functions similarly to Containerfiles and copies the specified files
-   in the container's rootfs as a new layer..
-- `LABEL`: all LABEL *instructions* are added as annotations to the container's
-  image. These are also embedded into a special `urunc.json` file inside the
-  image root filesystem.
-- `ENV`: Sets environment variables
-- `CMD`: Defines the command-line arguments for the application.
-- `ENTRYPOINT`: Specifies the container’s entrypoint.
+To override the default values, simply define the respective annotations in
+the Containerfile (See [examples](https://github.com/nubificus/bunny/tree/main/examples/README.md)).
 
 As with `bunnyfile`, using this syntax requires a special BuildKit directive at
 the top of the file:
@@ -312,7 +312,7 @@ make
 #### How to use
 
 In the case of buildctl, `bunny` does not produce any artifact by itself.
-Instead, it outputs a LLB that we can then feed in buildctl. 
+Instead, it outputs a LLB that we can then feed in buildctl.
 Therefore, in order to use `bunny`, we need to firstly install buildkit.
 For more information regarding building and installing buildkit, please refer
 to buildkit
