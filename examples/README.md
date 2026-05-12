@@ -1,4 +1,4 @@
-# Examples on using bunnyto build and package unikernels
+# Examples on using bunny to build and package unikernels
 
 The current directory provides various examples for packaging existing unikernel
 images as OCI images for [urunc](https://github.com/nubificus/urunc). It can

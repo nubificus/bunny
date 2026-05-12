@@ -6,7 +6,12 @@ transform it to an image that [urunc](https://github.com/nubificus/urunc) can
 execute with `bunny`. The respective `Containerfile` that we would use with
 [pun](https://github.com/nubificus/pun) would be:
 
-```
+## Using a Containerfile
+
+You can use standard Containerfile syntax with `bunny`. Here's the equivalent
+of the traditional [pun](https://github.com/nubificus/pun) Containerfile:
+
+```dockerfile
 #syntax=harbor.nbfc.io/nubificus/bunny:latest
 FROM unikraft.org/nginx:1.15
 
@@ -17,9 +22,10 @@ LABEL "com.urunc.unikernel.hypervisor"="qemu"
 CMD ["-c", "/nginx/conf/nginx.conf"]
 ```
 
-In order to use `bunny`, instead, we need to specify the
-following `bunnyfile` to package it as an OCI image for
-[urunc](https://github.com/nubificus/urunc).
+## Using a bunnyfile
+
+Alternatively, you can use the `bunnyfile` YAML format to package the same
+unikernel. The `bunnyfile` equivalent is:
 
 ```
 #syntax=harbor.nbfc.io/nubificus/bunny:latest
@@ -75,5 +81,6 @@ command should change to the following:
 
 The image will get pushed in the registry.
 
-> **NOTE**: In the above commands by simply replacing bunnyfile with
-> Containerfile and simply switch from one to the other file formats.
+> **NOTE**: You can use either `bunnyfile` or `Containerfile` as the input
+> format. `bunny` automatically detects the format and processes it accordingly.
+> Simply replace `-f bunnyfile` with `-f Containerfile` in the commands above.
