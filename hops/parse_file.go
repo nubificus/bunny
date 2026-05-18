@@ -28,9 +28,10 @@ import (
 )
 
 const (
-	defaultUrunitImage string = "harbor.nbfc.io/nubificus/urunit:latest"
-	defaultUrunitPath  string = "/urunit"
-	defaultKernelImage string = "harbor.nbfc.io/nubificus/urunc/linux-kernel-qemu:latest"
+	defaultUrunitImage            string = "harbor.nbfc.io/nubificus/urunit:latest"
+	defaultUrunitPath             string = "/urunit"
+	defaultQemuKernelImage        string = "harbor.nbfc.io/nubificus/bunny/linux-kernel-qemu:latest"
+	defaultFirecrackerKernelImage string = "harbor.nbfc.io/nubificus/bunny/linux-kernel-firecracker:latest"
 )
 
 var (
@@ -195,7 +196,11 @@ func containerfileToPack(state *llb.State, img *dockerspec.DockerOCIImage) (*Pac
 	if instr.Annots["com.urunc.unikernel.binary"] == "" {
 		var aCopy PackCopies
 
-		aCopy.SrcState = llb.Image(defaultKernelImage)
+		if instr.Annots["com.urunc.unikernel.hypervisor"] == "qemu" {
+			aCopy.SrcState = llb.Image(defaultQemuKernelImage)
+		} else {
+			aCopy.SrcState = llb.Image(defaultFirecrackerKernelImage)
+		}
 		aCopy.SrcPath = DefaultKernelPath
 		aCopy.DstPath = DefaultKernelPath
 		instr.Copies = append(instr.Copies, aCopy)
