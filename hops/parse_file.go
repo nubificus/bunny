@@ -141,19 +141,19 @@ func hopsToPack(ctx context.Context, fileBytes []byte, buildContext string, c cl
 	}
 
 	// Get the OCI Image config of the base Image if there is any
-	baseConfig, err := getBaseConfig(ctx, c, packInst.BaseRef, packInst.Annots["com.urunc.unikernel.hypervisor"])
+	baseImg, err := getBaseConfig(ctx, c, packInst.BaseRef, packInst.Annots["com.urunc.unikernel.hypervisor"])
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get OCI config of base image %s: %w", packInst.BaseRef, err)
 	}
 
 	if len(packInst.Img.Config.Cmd) > 0 {
-		baseConfig.Cmd = packInst.Img.Config.Cmd
+		baseImg.Config.Cmd = packInst.Img.Config.Cmd
 	}
 	if len(packInst.Img.Config.Entrypoint) > 0 {
-		baseConfig.Entrypoint = packInst.Img.Config.Entrypoint
+		baseImg.Config.Entrypoint = packInst.Img.Config.Entrypoint
 	}
-	baseConfig.Env = append(baseConfig.Env, packInst.Img.Config.Env...)
-	packInst.Img.Config = baseConfig
+	baseImg.Config.Env = append(baseImg.Config.Env, packInst.Img.Config.Env...)
+	packInst.Img = baseImg
 
 	// Get the OCI Image config of the base Image if there is any
 	packInst.Img = updateImage(packInst.Img, packInst.Annots)
