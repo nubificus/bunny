@@ -28,14 +28,14 @@ import (
 	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-func getBaseConfig(ctx context.Context, c client.Client, ref string, mon string) (ocispecs.ImageConfig, error) {
+func getBaseConfig(ctx context.Context, c client.Client, ref string, mon string) (ocispecs.Image, error) {
 	if ref == "" || ref == "scratch" {
-		return ocispecs.ImageConfig{}, nil
+		return ocispecs.Image{}, nil
 	}
 
 	baseRef, err := reference.ParseNormalizedNamed(ref)
 	if err != nil {
-		return ocispecs.ImageConfig{}, fmt.Errorf("failed to parse image name %s: %v", ref, err)
+		return ocispecs.Image{}, fmt.Errorf("failed to parse image name %s: %v", ref, err)
 	}
 	baseImageName := reference.TagNameOnly(baseRef).String()
 
@@ -56,13 +56,13 @@ func getBaseConfig(ctx context.Context, c client.Client, ref string, mon string)
 			},
 		})
 	if err != nil {
-		return ocispecs.ImageConfig{}, fmt.Errorf("failed to get image config from %s: %v", baseImageName, err)
+		return ocispecs.Image{}, fmt.Errorf("failed to get image config from %s: %v", baseImageName, err)
 	}
 
-	var cfg ocispecs.ImageConfig
+	var cfg ocispecs.Image
 	err = json.Unmarshal(config, &cfg)
 	if err != nil {
-		return ocispecs.ImageConfig{}, fmt.Errorf("failed to unmarshal image config of %s: %v", baseImageName, err)
+		return ocispecs.Image{}, fmt.Errorf("failed to unmarshal image config of %s: %v", baseImageName, err)
 	}
 
 	return cfg, nil
