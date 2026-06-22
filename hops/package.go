@@ -368,8 +368,8 @@ func PackLLB(instr PackInstructions) (*llb.Definition, error) {
 
 	// Create urunc.json file, since annotations do not reach urunc
 	for annot, val := range instr.Annots {
-		encoded := base64.StdEncoding.EncodeToString([]byte(val))
-		uruncJSON[annot] = string(encoded)
+		encoded := "b64:" + base64.StdEncoding.EncodeToString([]byte(val))
+		uruncJSON[annot] = encoded
 	}
 	uruncJSONBytes, err := json.Marshal(uruncJSON)
 	if err != nil {

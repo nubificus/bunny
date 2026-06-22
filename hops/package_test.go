@@ -1337,8 +1337,8 @@ func TestPackLLB(t *testing.T) {
 		err = json.Unmarshal(mkfile.Data, &annotJSON)
 		require.NoError(t, err)
 		for an, val := range instr.Annots {
-			encoded := base64.StdEncoding.EncodeToString([]byte(val))
-			require.Equal(t, string(encoded), annotJSON[an])
+			encoded := "b64:" + base64.StdEncoding.EncodeToString([]byte(val))
+			require.Equal(t, encoded, annotJSON[an])
 		}
 	})
 	t.Run("Base scratch no annots no copies", func(t *testing.T) {
@@ -1425,8 +1425,8 @@ func TestPackLLB(t *testing.T) {
 		err = json.Unmarshal(mkfile.Data, &annotJSON)
 		require.NoError(t, err)
 		for an, val := range instr.Annots {
-			encoded := base64.StdEncoding.EncodeToString([]byte(val))
-			require.Equal(t, string(encoded), annotJSON[an])
+			encoded := "b64:" + base64.StdEncoding.EncodeToString([]byte(val))
+			require.Equal(t, encoded, annotJSON[an])
 		}
 
 		c1 := arr[3]
