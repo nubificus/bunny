@@ -29,8 +29,11 @@ import (
 )
 
 const (
-	buildContextName  string = "context"
-	clientOptFilename string = "filename"
+	buildContextName       string = "context"
+	clientOptFilename      string = "filename"
+	dockerfileLocalName    string = "dockerfile"
+	clientOptDockerfileKey string = "dockerfilekey"
+	defaultFilename        string = "Dockerfile"
 )
 
 type CLIOpts struct {
@@ -70,23 +73,28 @@ func parseCLIOpts() CLIOpts {
 	return opts
 }
 
-func readFileFromLLB(ctx context.Context, c client.Client, filename string) ([]byte, error) {
-	// Get the file from client's context
-	fileSrc := llb.Local(buildContextName, llb.IncludePatterns([]string{filename}),
+// readFileFromLLB fetches filename from the local source localName of the
+// client and returns its contents.
+func readFileFromLLB(ctx context.Context, c client.Client, localsrcName string, filename string) ([]byte, error) {
+	// Get the file from the respective local source of the client
+	fileSrc := llb.Local(localsrcName,
+		llb.FollowPaths([]string{filename}),
+		llb.SharedKeyHint(localsrcName),
+		llb.Differ(llb.DiffNone, false),
 		llb.WithCustomName("Internal:Read-"+filename))
 	fileDef, err := fileSrc.Marshal(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to marshal state for fetching %s: %w", clientOptFilename, err)
+		return nil, fmt.Errorf("Failed to marshal state for fetching %s: %w", filename, err)
 	}
 	fileRes, err := c.Solve(ctx, client.SolveRequest{
 		Definition: fileDef.ToPB(),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Failed to solve state for fetching %s: %w", clientOptFilename, err)
+		return nil, fmt.Errorf("Failed to solve state for fetching %s: %w", filename, err)
 	}
 	fileRef, err := fileRes.SingleRef()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get reference of result for fetching %s: %w", clientOptFilename, err)
+		return nil, fmt.Errorf("Failed to get reference of result for fetching %s: %w", filename, err)
 	}
 
 	// Read the content of the file
@@ -94,7 +102,7 @@ func readFileFromLLB(ctx context.Context, c client.Client, filename string) ([]b
 		Filename: filename,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Failed to read %s: %w", clientOptFilename, err)
+		return nil, fmt.Errorf("Failed to read %s: %w", filename, err)
 	}
 
 	return fileBytes, nil
@@ -104,16 +112,23 @@ func bunnyBuilder(ctx context.Context, c client.Client) (*client.Result, error) 
 	// Get the Build options from buildkit
 	buildOpts := c.BuildOpts().Opts
 
-	// Get the file that contains the instructions
+	// Get the name of the file that contains the instructions, defaulting to
+	// the standard name when the client does not specify one.
 	bunnyFile := buildOpts[clientOptFilename]
 	if bunnyFile == "" {
-		return nil, fmt.Errorf("Could not find %s", clientOptFilename)
+		bunnyFile = defaultFilename
 	}
 
-	// Fetch and read contents of user-specified file in build context
-	fileBytes, err := readFileFromLLB(ctx, c, bunnyFile)
+	// Get the name of the local source that contains the above file
+	fileLocalName := dockerfileLocalName
+	if v, ok := buildOpts[clientOptDockerfileKey]; ok && v != "" {
+		fileLocalName = v
+	}
+
+	// Fetch and read contents of user-specified file
+	fileBytes, err := readFileFromLLB(ctx, c, fileLocalName, bunnyFile)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch and read %s: %w", clientOptFilename, err)
+		return nil, fmt.Errorf("Failed to fetch and read %s: %w", bunnyFile, err)
 	}
 
 	// Parse packaging/building instructions
