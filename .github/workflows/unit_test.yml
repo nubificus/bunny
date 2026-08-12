@@ -1,26 +1,27 @@
 name: Run unit tests
 
 on:
-    pull_request:
-      branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-jobs:
-  unit-test-amd64:
-    name: unit-test-amd64
-    runs-on: base-dind-2204-amd64
-    steps:
-      - uses: actions/checkout@v3
-      - name: Run bunny unit tests
-        run: make unittest
+permissions:
+  contents: read
 
-  unit-test-aarch64:
-    name: unit-test-arm64
-    runs-on: base-dind-2204-arm64
+jobs:
+  unit-test:
+    name: unit-test-${{ matrix.arch }}
+    runs-on: base-dind-2204-${{ matrix.arch }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Run bunny unit tests
         run: make unittest

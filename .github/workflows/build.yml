@@ -9,12 +9,6 @@ on:
       runner-archs:
         type: string
         default: '["amd64", "aarch64"]'
-      dockerfiles:
-        type: string
-        default: '["Dockerfile"]'
-      runner-arch-map:
-        type: string
-        default: '[{"amd64":"x86_64", "aarch64":"aarch64", "armv7l":"armv7l"}]'
       registry:
         type: string
         default: 'harbor.nbfc.io'
@@ -38,15 +32,12 @@ jobs:
     runs-on: ${{ format('{0}-{1}', join(fromJSON(inputs.runner), '-'), matrix.arch) }}
     #timeout-minutes: 600
     permissions:
-      contents: write # for uploading the SBOM to the release
-      packages: write # for uploading the finished container
-      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
-      id-token: write # to complete the identity challenge with sigstore/fulcio when running outside of PRs
+      contents: read # for actions/checkout
+      id-token: write # cosign keyless signing (sigstore/fulcio OIDC)
     strategy:
+      fail-fast: false
       matrix:
-        dockerfile: ["${{ fromJSON(inputs.dockerfiles) }}"]
-        arch: ["${{ fromJSON(inputs.runner-archs) }}"]
-    continue-on-error: true
+        arch: ${{ fromJSON(inputs.runner-archs) }}
 
     env:
       REGISTRY: ${{ inputs.registry }}
@@ -55,16 +46,16 @@ jobs:
 
     steps:
       - name: Checkout the repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set short SHA
         run: echo "SHA_SHORT=${GITHUB_SHA::7}" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Log into registry ${{ env.REGISTRY }}
-        uses: docker/login-action@28218f9b04b4f3f62068d7b6ce6ca5b26e35336c
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.harbor_user }}
@@ -72,33 +63,27 @@ jobs:
 
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
             type=sha,prefix=${{ env.ARCH }}-
- 
-      - name: Build and push ${{ matrix.dockerfile }}-${{ matrix.arch}}
+
+      - name: Build and push ${{ matrix.arch }}
         id: build-and-push
-        uses: docker/build-push-action@master
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           push: true
-          file: ${{ matrix.dockerfile }}
+          file: Dockerfile
           #build-contexts: |
           # ${{ steps.base-image-calculator.outputs.base_image }}
           provenance: false
- 
-      - name: Get image digest
-        run: |
-          echo "IMAGE_DIGEST=$(docker inspect \
-          ${{ env.REGISTRY }}/${{ github.repository }}:${{ env.ARCH }}-${{ env.SHA_SHORT }} | \
-          jq -r '.[0].Id')" >> $GITHUB_ENV
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@main
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
 
       - name: Sign the published Docker image
         env:
@@ -115,26 +100,21 @@ jobs:
     needs: [build-all]
     runs-on: base-dind-2204-amd64
     permissions:
-      contents: write # for uploading the SBOM to the release
-      packages: write # for uploading the finished container
-      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
-      id-token: write # to complete the identity challenge with sigstore/fulcio when running outside of PRs
-    strategy:
-      matrix:
-        dockerfile: ["${{ fromJSON(inputs.dockerfiles) }}"] 
+      contents: read # for actions/checkout
+      id-token: write # cosign keyless signing (sigstore/fulcio OIDC)
     env:
       REGISTRY: ${{ inputs.registry }}
       #TAG: generic
 
     steps:
       - name: Checkout the repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set short SHA
         run: echo "SHA_SHORT=${GITHUB_SHA::7}" >> $GITHUB_ENV
 
-      - name: Log into registry ${{ inputs.REGISTRY }}
-        uses: docker/login-action@28218f9b04b4f3f62068d7b6ce6ca5b26e35336c
+      - name: Log into registry ${{ inputs.registry }}
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.harbor_user }}
@@ -145,7 +125,7 @@ jobs:
         run: |
           if [[ ${{ inputs.version-tag }} == true ]]; then
             echo "Version change detected. Using version: $( cat VERSION )."
-            echo "TAG=$( cat VERSION ) " >> $GITHUB_ENV
+            echo "TAG=$(cat VERSION)" >> $GITHUB_ENV
           elif [[ "${GITHUB_REF##*/}" == "main" ]]; then
             echo "Change in main branch detected. Using latest tag."
             echo "TAG=latest" >> $GITHUB_ENV
@@ -178,7 +158,7 @@ jobs:
           echo "manifest_sha=$VAR" >> "$GITHUB_OUTPUT"
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
 
       - name: Sign the published Docker image
         env:
