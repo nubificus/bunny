@@ -32,6 +32,7 @@ const (
 	defaultUrunitPath             string = "/urunit"
 	defaultQemuKernelImage        string = "harbor.nbfc.io/nubificus/bunny/linux-kernel-qemu:latest"
 	defaultFirecrackerKernelImage string = "harbor.nbfc.io/nubificus/bunny/linux-kernel-firecracker:latest"
+	defaultCLHKernelImage         string = "harbor.nbfc.io/nubificus/bunny/linux-kernel-cloud-hypervisor:latest"
 )
 
 var (
@@ -171,6 +172,10 @@ func containerfileToPack(state *llb.State, img *dockerspec.DockerOCIImage) (*Pac
 		instr.Annots[k] = v
 	}
 
+	// TODO: We mght want to append the urunc labels, because now
+	// if no labels were set, the image will not have any labels
+	// Just in case they are useful in the future.
+
 	// Set default annotations if they are not set
 	if instr.Annots["com.urunc.unikernel.unikernelType"] == "" {
 		instr.Annots["com.urunc.unikernel.unikernelType"] = "linux"
@@ -196,10 +201,13 @@ func containerfileToPack(state *llb.State, img *dockerspec.DockerOCIImage) (*Pac
 	if instr.Annots["com.urunc.unikernel.binary"] == "" {
 		var aCopy PackCopies
 
-		if instr.Annots["com.urunc.unikernel.hypervisor"] == "qemu" {
-			aCopy.SrcState = llb.Image(defaultQemuKernelImage)
-		} else {
+		switch instr.Annots["com.urunc.unikernel.hypervisor"] {
+		case "cloud-hypervisor":
+			aCopy.SrcState = llb.Image(defaultCLHKernelImage)
+		case "firecracker":
 			aCopy.SrcState = llb.Image(defaultFirecrackerKernelImage)
+		default:
+			aCopy.SrcState = llb.Image(defaultQemuKernelImage)
 		}
 		aCopy.SrcPath = DefaultKernelPath
 		aCopy.DstPath = DefaultKernelPath
