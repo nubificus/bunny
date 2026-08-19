@@ -172,7 +172,7 @@ func containerfileToPack(state *llb.State, img *dockerspec.DockerOCIImage) (*Pac
 		instr.Annots[k] = v
 	}
 
-	// TODO: We mght want to append the urunc labels, because now
+	// TODO: We might want to append the urunc labels, because now
 	// if no labels were set, the image will not have any labels
 	// Just in case they are useful in the future.
 
@@ -201,13 +201,16 @@ func containerfileToPack(state *llb.State, img *dockerspec.DockerOCIImage) (*Pac
 	if instr.Annots["com.urunc.unikernel.binary"] == "" {
 		var aCopy PackCopies
 
+		monAnnot := instr.Annots["com.urunc.unikernel.hypervisor"]
 		switch instr.Annots["com.urunc.unikernel.hypervisor"] {
 		case "cloud-hypervisor":
 			aCopy.SrcState = llb.Image(defaultCLHKernelImage)
 		case "firecracker":
 			aCopy.SrcState = llb.Image(defaultFirecrackerKernelImage)
-		default:
+		case "qemu":
 			aCopy.SrcState = llb.Image(defaultQemuKernelImage)
+		default:
+			return nil, fmt.Errorf("unknown monitor %s in com.urunc.unikernel.hypervisor", monAnnot)
 		}
 		aCopy.SrcPath = DefaultKernelPath
 		aCopy.DstPath = DefaultKernelPath
