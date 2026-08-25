@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
-	"strings"
 
 	"github.com/moby/buildkit/client/llb"
 	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
@@ -272,7 +271,6 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 func (i *PackInstructions) SetAnnotations(p Platform, cmd []string, kernelPath string, rootfsPath string, rootfsType string) error {
 	// Set basic annotations for urunc's functionality
 	i.Annots["com.urunc.unikernel.unikernelType"] = p.Framework
-	i.Annots["com.urunc.unikernel.cmdline"] = strings.Join(cmd, " ")
 	i.Annots["com.urunc.unikernel.hypervisor"] = p.Monitor
 	i.Annots["com.urunc.unikernel.binary"] = kernelPath
 	// Disable mountRootfs by default and enable it only when rootfs is raw.
