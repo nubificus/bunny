@@ -19,7 +19,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/moby/buildkit/client/llb"
@@ -341,7 +340,6 @@ func TestPackSetAnnotations(t *testing.T) {
 				require.Equal(t, p.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
 				require.Equal(t, p.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
 				require.Equal(t, p.Version, i.Annots["com.urunc.unikernel.unikernelVersion"])
-				require.Equal(t, strings.Join(tc.cmd, " "), i.Annots["com.urunc.unikernel.cmdline"])
 				require.Equal(t, tc.kPath, i.Annots["com.urunc.unikernel.binary"])
 				switch tc.rType {
 				case "raw":
@@ -679,7 +677,6 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, "false", i.Annots["com.urunc.unikernel.mountRootfs"])
 		require.Equal(t, hops.Platform.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
 		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
-		require.Equal(t, strings.Join(hops.Cmd, " "), i.Annots["com.urunc.unikernel.cmdline"])
 		require.Equal(t, DefaultKernelPath, i.Annots["com.urunc.unikernel.binary"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.initrd"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.unikernelVersion"])
@@ -719,7 +716,6 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, "false", i.Annots["com.urunc.unikernel.mountRootfs"])
 		require.Equal(t, hops.Platform.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
 		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
-		require.Equal(t, strings.Join(hops.Cmd, " "), i.Annots["com.urunc.unikernel.cmdline"])
 		require.Equal(t, hops.Kernel.Path, i.Annots["com.urunc.unikernel.binary"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.initrd"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.unikernelVersion"])
@@ -756,7 +752,6 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, "false", i.Annots["com.urunc.unikernel.mountRootfs"])
 		require.Equal(t, hops.Platform.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
 		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
-		require.Equal(t, strings.Join(hops.Cmd, " "), i.Annots["com.urunc.unikernel.cmdline"])
 		require.Equal(t, DefaultKernelPath, i.Annots["com.urunc.unikernel.binary"])
 		require.Equal(t, DefaultRootfsPath, i.Annots["com.urunc.unikernel.initrd"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.unikernelVersion"])
@@ -811,7 +806,6 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, hops.Platform.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
 		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
 		require.Equal(t, hops.Platform.Version, i.Annots["com.urunc.unikernel.unikernelVersion"])
-		require.Equal(t, strings.Join(hops.Cmd, " "), i.Annots["com.urunc.unikernel.cmdline"])
 		require.Equal(t, DefaultKernelPath, i.Annots["com.urunc.unikernel.binary"])
 		require.Equal(t, DefaultRootfsPath, i.Annots["com.urunc.unikernel.initrd"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.blkMntPoint"])
@@ -864,7 +858,6 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, "false", i.Annots["com.urunc.unikernel.mountRootfs"])
 		require.Equal(t, hops.Platform.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
 		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
-		require.Equal(t, strings.Join(hops.Cmd, " "), i.Annots["com.urunc.unikernel.cmdline"])
 		require.Equal(t, DefaultKernelPath, i.Annots["com.urunc.unikernel.binary"])
 		require.Equal(t, hops.Rootfs.Path, i.Annots["com.urunc.unikernel.initrd"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.unikernelVersion"])
@@ -909,7 +902,6 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, "true", i.Annots["com.urunc.unikernel.mountRootfs"])
 		require.Equal(t, hops.Platform.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
 		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
-		require.Equal(t, strings.Join(hops.Cmd, " "), i.Annots["com.urunc.unikernel.cmdline"])
 		require.Equal(t, DefaultKernelPath, i.Annots["com.urunc.unikernel.binary"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.initrd"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.unikernelVersion"])
@@ -959,7 +951,6 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, "false", i.Annots["com.urunc.unikernel.mountRootfs"])
 		require.Equal(t, hops.Platform.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
 		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
-		require.Equal(t, strings.Join(hops.Cmd, " "), i.Annots["com.urunc.unikernel.cmdline"])
 		require.Equal(t, DefaultKernelPath, i.Annots["com.urunc.unikernel.binary"])
 		require.Equal(t, DefaultRootfsPath, i.Annots["com.urunc.unikernel.initrd"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.unikernelVersion"])
@@ -1021,7 +1012,6 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, "true", i.Annots["com.urunc.unikernel.mountRootfs"])
 		require.Equal(t, hops.Platform.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
 		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
-		require.Equal(t, strings.Join(hops.Cmd, " "), i.Annots["com.urunc.unikernel.cmdline"])
 		require.Equal(t, DefaultKernelPath, i.Annots["com.urunc.unikernel.binary"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.initrd"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.unikernelVersion"])
@@ -1069,7 +1059,6 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, "false", i.Annots["com.urunc.unikernel.mountRootfs"])
 		require.Equal(t, hops.Platform.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
 		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
-		require.Equal(t, strings.Join(hops.Cmd, " "), i.Annots["com.urunc.unikernel.cmdline"])
 		require.Equal(t, hops.Kernel.Path, i.Annots["com.urunc.unikernel.binary"])
 		require.Equal(t, DefaultRootfsPath, i.Annots["com.urunc.unikernel.initrd"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.unikernelVersion"])
@@ -1116,7 +1105,6 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, "false", i.Annots["com.urunc.unikernel.mountRootfs"])
 		require.Equal(t, hops.Platform.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
 		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
-		require.Equal(t, strings.Join(hops.Cmd, " "), i.Annots["com.urunc.unikernel.cmdline"])
 		require.Equal(t, DefaultKernelPath, i.Annots["com.urunc.unikernel.binary"])
 		require.Equal(t, hops.Rootfs.Path, i.Annots["com.urunc.unikernel.initrd"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.unikernelVersion"])
@@ -1161,7 +1149,6 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, "true", i.Annots["com.urunc.unikernel.mountRootfs"])
 		require.Equal(t, hops.Platform.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
 		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
-		require.Equal(t, strings.Join(hops.Cmd, " "), i.Annots["com.urunc.unikernel.cmdline"])
 		require.Equal(t, DefaultKernelPath, i.Annots["com.urunc.unikernel.binary"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.initrd"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.unikernelVersion"])
@@ -1211,7 +1198,6 @@ func TestPackToPack(t *testing.T) {
 		require.Equal(t, "false", i.Annots["com.urunc.unikernel.mountRootfs"])
 		require.Equal(t, hops.Platform.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
 		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
-		require.Equal(t, strings.Join(hops.Cmd, " "), i.Annots["com.urunc.unikernel.cmdline"])
 		require.Equal(t, hops.Kernel.Path, i.Annots["com.urunc.unikernel.binary"])
 		require.Equal(t, DefaultRootfsPath, i.Annots["com.urunc.unikernel.initrd"])
 		require.Empty(t, i.Annots["com.urunc.unikernel.unikernelVersion"])
