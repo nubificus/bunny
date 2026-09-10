@@ -29,6 +29,7 @@ func TestFrameworkPreferredOS(t *testing.T) {
 	}{
 		{"unikraft qemu", "unikraft", "qemu", "qemu"},
 		{"unikraft firecracker maps to fc", "unikraft", "firecracker", "fc"},
+		{"freebsd ignores monitor", "freebsd", "qemu", "freebsd"},
 		{"generic linux framework", "linux", "qemu", ""},
 		{"unknown framework", "rumprun", "qemu", ""},
 	}
