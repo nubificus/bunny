@@ -36,6 +36,8 @@ func newFramework(plat Platform, rfs Rootfs) Framework {
 	switch plat.Framework {
 	case unikraftName:
 		return NewUnikraft(plat, rfs)
+	case freebsdName:
+		return NewFreeBSD(plat, rfs)
 	default:
 		return NewGeneric(plat, rfs)
 	}
