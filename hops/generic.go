@@ -47,6 +47,11 @@ func (i *GenericInfo) Name() string {
 	return genericName
 }
 
+func (i *GenericInfo) PreferredOS() string {
+	// Generic (linux) frameworks use standard linux images.
+	return ""
+}
+
 func (i *GenericInfo) GetRootfsType() string {
 	return i.Rootfs.Type
 }
@@ -90,7 +95,7 @@ func (i *GenericInfo) CreateRootfs(buildContext string) (llb.State, error) {
 }
 
 func (i *GenericInfo) UpdateRootfs(buildContext string) (llb.State, error) {
-	base := llb.Image(i.Rootfs.From)
+	base := GetSourceState(i.Rootfs.From, i.Rootfs.resolvedOS)
 	switch i.Rootfs.Type {
 	case "initrd":
 		return llb.Scratch(), fmt.Errorf("Can not update an initrd rootfs")

@@ -15,28 +15,27 @@
 package hops
 
 import (
-	"github.com/moby/buildkit/client/llb"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-type Framework interface {
-	Name() string
-	PreferredOS() string
-	GetRootfsType() string
-	SupportsRootfsType(string) bool
-	SupportsFsType(string) bool
-	SupportsMonitor(string) bool
-	SupportsArch(string) bool
-	CreateRootfs(string) (llb.State, error)
-	UpdateRootfs(string) (llb.State, error)
-	BuildKernel(string) llb.State
-}
-
-// newFramework selects the Framework implementation for the given platform.
-func newFramework(plat Platform, rfs Rootfs) Framework {
-	switch plat.Framework {
-	case unikraftName:
-		return NewUnikraft(plat, rfs)
-	default:
-		return NewGeneric(plat, rfs)
+func TestFrameworkPreferredOS(t *testing.T) {
+	tests := []struct {
+		name      string
+		framework string
+		monitor   string
+		expected  string
+	}{
+		{"unikraft qemu", "unikraft", "qemu", "qemu"},
+		{"unikraft firecracker maps to fc", "unikraft", "firecracker", "fc"},
+		{"generic linux framework", "linux", "qemu", ""},
+		{"unknown framework", "rumprun", "qemu", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFramework(Platform{Framework: tc.framework, Monitor: tc.monitor}, Rootfs{})
+			require.Equal(t, tc.expected, f.PreferredOS())
+		})
 	}
 }

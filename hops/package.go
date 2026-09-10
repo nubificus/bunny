@@ -28,7 +28,6 @@ import (
 const (
 	DefaultKernelPath string = "/.boot/kernel"
 	DefaultRootfsPath string = "/.boot/rootfs"
-	unikraftHub       string = "unikraft.org"
 	uruncJSONPath     string = "/urunc.json"
 )
 
@@ -43,6 +42,8 @@ type FileToInclude struct {
 	From string `yaml:"from"`
 	Src  string `yaml:"source"`
 	Dst  string `yaml:"destination"`
+	// resolvedOS is the platform OS that the From image should be pulled with.
+	resolvedOS string
 }
 
 type Rootfs struct {
@@ -50,11 +51,15 @@ type Rootfs struct {
 	Path     string          `yaml:"path"`
 	Type     string          `yaml:"type"`
 	Includes []FileToInclude `yaml:"include"`
+	// resolvedOS is the platform OS that the From image should be pulled with.
+	resolvedOS string
 }
 
 type Kernel struct {
 	From string `yaml:"from"`
 	Path string `yaml:"path"`
+	// resolvedOS is the platform OS that the From image should be pulled with.
+	resolvedOS string
 }
 
 type Hops struct {
@@ -83,6 +88,8 @@ type PackInstructions struct {
 	Base llb.State
 	// The reference of the final base image
 	BaseRef string
+	// The platform OS the base image is pulled with (see resolveOSHints)
+	BaseOS string
 	// The files to copy inside the final image
 	Copies []PackCopies
 	// Annotations
@@ -95,22 +102,24 @@ type PackEntry struct {
 	SourceState llb.State // the state where the files live
 	SourceRef   string    // the reference of the state
 	FilePath    string    // path to the file within the state
+	resolvedOS  string    // the platform OS to pull SourceRef with
 }
 
-func handleKernel(_ Framework, buildContext string, mon string, k Kernel) (*PackEntry, error) {
+func handleKernel(_ Framework, buildContext string, k Kernel) (*PackEntry, error) {
 	entry := &PackEntry{}
 	entry.SourceRef = k.From
+	entry.resolvedOS = k.resolvedOS
 	if k.From == "local" {
 		entry.SourceState = llb.Local(buildContext)
 	} else {
-		entry.SourceState = GetSourceState(k.From, mon)
+		entry.SourceState = GetSourceState(k.From, k.resolvedOS)
 	}
 	entry.FilePath = k.Path
 
 	return entry, nil
 }
 
-func handleRootfs(f Framework, buildContext string, mon string, r Rootfs) (*PackEntry, error) {
+func handleRootfs(f Framework, buildContext string, r Rootfs) (*PackEntry, error) {
 	entry := &PackEntry{}
 
 	// Make sure that the specified rootfs type is supported
@@ -121,6 +130,7 @@ func handleRootfs(f Framework, buildContext string, mon string, r Rootfs) (*Pack
 	}
 
 	entry.SourceRef = r.From
+	entry.resolvedOS = r.resolvedOS
 	switch r.From {
 	case "local":
 		entry.SourceState = llb.Local(buildContext)
@@ -162,7 +172,7 @@ func handleRootfs(f Framework, buildContext string, mon string, r Rootfs) (*Pack
 			// more rootfs types
 			entry.FilePath = ""
 		} else {
-			entry.SourceState = GetSourceState(r.From, mon)
+			entry.SourceState = GetSourceState(r.From, r.resolvedOS)
 			// TODO: Be aware of the case r.Path is empty,
 			// which means we have a raw rootfs from an image.
 			entry.FilePath = r.Path
@@ -206,10 +216,12 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 			makeCopy(*kEntry, DefaultKernelPath))
 		i.Base = llb.Scratch()
 		i.BaseRef = ""
+		i.BaseOS = ""
 		kernelCopy = true
 	default:
 		i.Base = kEntry.SourceState
 		i.BaseRef = kEntry.SourceRef
+		i.BaseOS = kEntry.resolvedOS
 	}
 
 	rootfsCopy := false
@@ -226,6 +238,7 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 		} else {
 			i.Base = rEntry.SourceState
 			i.BaseRef = rEntry.SourceRef
+			i.BaseOS = rEntry.resolvedOS
 		}
 	case "local":
 		i.Copies = append(i.Copies,
@@ -234,6 +247,7 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 	default:
 		i.Base = rEntry.SourceState
 		i.BaseRef = rEntry.SourceRef
+		i.BaseOS = rEntry.resolvedOS
 	}
 
 	// There are cases where both kernel and rootfs come from an existing
@@ -313,26 +327,20 @@ func (i *PackInstructions) UpdateConfig(cmd []string, entryp []string, ev []stri
 
 // ToPack converts Hops into PackInstructions
 func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
-	var framework Framework
 	instr := &PackInstructions{
 		Annots: map[string]string{},
 	}
 
 	// Get the framework and call the respective function to create the
 	// rootfs.
-	switch h.Platform.Framework {
-	case unikraftName:
-		framework = NewUnikraft(h.Platform, h.Rootfs)
-	default:
-		framework = NewGeneric(h.Platform, h.Rootfs)
-	}
+	framework := newFramework(h.Platform, h.Rootfs)
 
-	kernelEntry, err := handleKernel(framework, buildContext, h.Platform.Monitor, h.Kernel)
+	kernelEntry, err := handleKernel(framework, buildContext, h.Kernel)
 	if err != nil {
 		return nil, fmt.Errorf("Error handling kernel entry: %v", err)
 	}
 
-	rootfsEntry, err := handleRootfs(framework, buildContext, h.Platform.Monitor, h.Rootfs)
+	rootfsEntry, err := handleRootfs(framework, buildContext, h.Rootfs)
 	if err != nil {
 		return nil, fmt.Errorf("Error handling rootfs entry: %v", err)
 	}

@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
-	"strings"
 
 	"github.com/distribution/reference"
 	"github.com/moby/buildkit/client/llb/sourceresolver"
@@ -28,7 +27,31 @@ import (
 	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-func getBaseConfig(ctx context.Context, c client.Client, ref string, mon string) (ocispecs.Image, error) {
+// probeOS returns the OS that ref should be pulled with trying first preferredOS.
+// If that fails, falls back to linux
+func probeOS(ctx context.Context, c client.Client, ref string, preferredOS string) string {
+	if ref == "" || ref == "scratch" || ref == "local" {
+		return ""
+	}
+	named, err := reference.ParseNormalizedNamed(ref)
+	if err != nil {
+		return "linux"
+	}
+	name := reference.TagNameOnly(named).String()
+
+	ociPlat := ocispecs.Platform{OS: preferredOS, Architecture: runtime.GOARCH}
+	_, _, _, err = c.ResolveImageConfig(ctx, name, sourceresolver.Opt{
+		LogName:  fmt.Sprintf("probing %q platform for %s", preferredOS, name),
+		ImageOpt: &sourceresolver.ResolveImageOpt{Platform: &ociPlat},
+	})
+	if err != nil {
+		return "linux"
+	}
+
+	return preferredOS
+}
+
+func getBaseConfig(ctx context.Context, c client.Client, ref string, baseOS string) (ocispecs.Image, error) {
 	if ref == "" || ref == "scratch" {
 		return ocispecs.Image{}, nil
 	}
@@ -39,15 +62,12 @@ func getBaseConfig(ctx context.Context, c client.Client, ref string, mon string)
 	}
 	baseImageName := reference.TagNameOnly(baseRef).String()
 
-	plat := ocispecs.Platform{
-		Architecture: runtime.GOARCH,
+	// baseOS is the OS the base image was already resolved to be pulled with
+	// (see resolveOSHints); default to linux when the ref was not probed.
+	if baseOS == "" {
+		baseOS = "linux"
 	}
-	if strings.HasPrefix(ref, unikraftHub) {
-		// Define the platform to qemu/amd64 so we can pull unikraft images
-		plat.OS = mon
-	} else {
-		plat.OS = "linux"
-	}
+	plat := ocispecs.Platform{Architecture: runtime.GOARCH, OS: baseOS}
 	_, _, config, err := c.ResolveImageConfig(ctx, baseImageName,
 		sourceresolver.Opt{
 			LogName: "resolving image metadata for " + baseImageName,
