@@ -16,7 +16,6 @@ package hops
 
 import (
 	"runtime"
-	"strings"
 
 	"github.com/moby/buildkit/client/llb"
 	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
@@ -36,7 +35,7 @@ func FilesLLB(fileList []FileToInclude, buildContext string, toState llb.State) 
 
 		fromState := local
 		if file.From != "" && file.From != "local" {
-			fromState = llb.Image(file.From)
+			fromState = GetSourceState(file.From, file.resolvedOS)
 		}
 		aCopy.SrcState = fromState
 		aCopy.SrcPath = file.Src
@@ -78,19 +77,16 @@ func CopyLLB(to llb.State, from PackCopies) llb.State {
 	return copyState
 }
 
-// Set the source llb state from the sourceRef image and also set
-// the appropriate platform for unikraft images.
-func GetSourceState(sourceRef string, monitor string) llb.State {
-	if monitor == "firecracker" {
-		monitor = "fc"
-	}
+// GetSourceState returns the llb state for the sourceRef image. When os is not
+// empty, the image is pulled for that OS, which is how non-linux frameworks
+// (e.g. unikraft) select their images.
+func GetSourceState(sourceRef string, os string) llb.State {
 	if sourceRef == "scratch" {
 		return llb.Scratch()
 	}
-	if strings.HasPrefix(sourceRef, unikraftHub) {
-		// Define the platform to qemu/amd64 so we can pull unikraft images
+	if os != "" {
 		platform := ocispecs.Platform{
-			OS:           monitor,
+			OS:           os,
 			Architecture: runtime.GOARCH,
 		}
 		return llb.Image(sourceRef, llb.Platform(platform))

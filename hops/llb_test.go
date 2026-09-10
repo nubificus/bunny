@@ -269,8 +269,8 @@ func TestLLBBase(t *testing.T) {
 		require.Equal(t, runtime.GOARCH, p.Architecture)
 		require.Equal(t, "qemu", p.OS)
 	})
-	t.Run("From unikraft and firecracker", func(t *testing.T) {
-		state := GetSourceState("unikraft.org/foo", "firecracker")
+	t.Run("From unikraft and fc", func(t *testing.T) {
+		state := GetSourceState("unikraft.org/foo", "fc")
 		def, err := state.Marshal(context.TODO())
 
 		require.NoError(t, err)
@@ -297,7 +297,7 @@ func TestLLBBase(t *testing.T) {
 		require.Equal(t, runtime.GOARCH, p.Architecture)
 		require.Equal(t, "linux", p.OS)
 	})
-	t.Run("From foo and monitor", func(t *testing.T) {
+	t.Run("From foo and explicit os", func(t *testing.T) {
 		state := GetSourceState("foo", "bar")
 		def, err := state.Marshal(context.TODO())
 
@@ -309,7 +309,7 @@ func TestLLBBase(t *testing.T) {
 		p := arr[0].Platform
 		require.NotNil(t, p)
 		require.Equal(t, runtime.GOARCH, p.Architecture)
-		require.Equal(t, "linux", p.OS)
+		require.Equal(t, "bar", p.OS)
 	})
 }
 

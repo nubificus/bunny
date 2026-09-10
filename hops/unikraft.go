@@ -47,6 +47,14 @@ func (i *UnikraftInfo) Name() string {
 	return unikraftName
 }
 
+func (i *UnikraftInfo) PreferredOS() string {
+	// Unikraft images encode the monitor as the platform OS.
+	if i.Monitor == "firecracker" {
+		return "fc"
+	}
+	return i.Monitor
+}
+
 func (i *UnikraftInfo) GetRootfsType() string {
 	return i.Rootfs.Type
 }
@@ -100,7 +108,7 @@ func (i *UnikraftInfo) CreateRootfs(buildContext string) (llb.State, error) {
 }
 
 func (i *UnikraftInfo) UpdateRootfs(buildContext string) (llb.State, error) {
-	base := llb.Image(i.Rootfs.From)
+	base := GetSourceState(i.Rootfs.From, i.Rootfs.resolvedOS)
 	switch i.Rootfs.Type {
 	case "initrd":
 		return llb.Scratch(), fmt.Errorf("Can not update an initrd rootfs")

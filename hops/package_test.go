@@ -58,7 +58,7 @@ func TestPackHandleKernel(t *testing.T) {
 		}
 		f := NewGeneric(p, r)
 
-		e, err := handleKernel(f, "context", "mon", k)
+		e, err := handleKernel(f, "context", k)
 		require.NoError(t, err)
 		require.NotNil(t, e)
 		require.Equal(t, k.From, e.SourceRef)
@@ -83,7 +83,7 @@ func TestPackHandleKernel(t *testing.T) {
 		}
 		f := NewGeneric(p, r)
 
-		e, err := handleKernel(f, "context", "mon", k)
+		e, err := handleKernel(f, "context", k)
 		require.NoError(t, err)
 		require.NotNil(t, e)
 		require.Equal(t, k.From, e.SourceRef)
@@ -106,7 +106,7 @@ func TestPackHandleRootfs(t *testing.T) {
 		r := Rootfs{}
 		f := NewGeneric(p, r)
 
-		e, err := handleRootfs(f, "context", "mon", r)
+		e, err := handleRootfs(f, "context", r)
 		require.NoError(t, err)
 		require.NotNil(t, e)
 		require.Empty(t, e.SourceRef)
@@ -127,7 +127,7 @@ func TestPackHandleRootfs(t *testing.T) {
 		}
 		f := NewGeneric(p, r)
 
-		e, err := handleRootfs(f, "context", "mon", r)
+		e, err := handleRootfs(f, "context", r)
 		require.NoError(t, err)
 		require.NotNil(t, e)
 		require.Equal(t, r.From, e.SourceRef)
@@ -156,7 +156,7 @@ func TestPackHandleRootfs(t *testing.T) {
 		}
 		f := NewGeneric(p, r)
 
-		e, err := handleRootfs(f, "context", "mon", r)
+		e, err := handleRootfs(f, "context", r)
 		require.NoError(t, err)
 		require.NotNil(t, e)
 		require.Equal(t, r.From, e.SourceRef)
@@ -184,7 +184,7 @@ func TestPackHandleRootfs(t *testing.T) {
 		}
 		f := NewUnikraft(p, r)
 
-		e, err := handleRootfs(f, "context", "mon", r)
+		e, err := handleRootfs(f, "context", r)
 		require.NoError(t, err)
 		require.NotNil(t, e)
 		require.Equal(t, r.From, e.SourceRef)
@@ -216,7 +216,7 @@ func TestPackHandleRootfs(t *testing.T) {
 		}
 		f := NewGeneric(p, r)
 
-		e, err := handleRootfs(f, "context", "mon", r)
+		e, err := handleRootfs(f, "context", r)
 		require.NoError(t, err)
 		require.NotNil(t, e)
 		require.Equal(t, "scratch", e.SourceRef)
@@ -254,7 +254,7 @@ func TestPackHandleRootfs(t *testing.T) {
 		}
 		f := NewGeneric(p, r)
 
-		e, err := handleRootfs(f, "context", "mon", r)
+		e, err := handleRootfs(f, "context", r)
 		require.Nil(t, e)
 		require.ErrorContains(t, err, "Cannot set foo")
 	})

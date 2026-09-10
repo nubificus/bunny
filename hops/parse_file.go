@@ -128,6 +128,32 @@ func ParseBunnyfile(fileBytes []byte) (*Hops, error) {
 	return bunnyHops, nil
 }
 
+// resolveOSHints probes every image reference in hops and records the OS it
+// should be pulled with.
+func resolveOSHints(ctx context.Context, c client.Client, hops *Hops, f Framework) {
+	prefer := f.PreferredOS()
+	if prefer == "" {
+		// linux-only framework: nothing to probe.
+		return
+	}
+
+	cache := map[string]string{}
+	probe := func(ref string) string {
+		if hint, ok := cache[ref]; ok {
+			return hint
+		}
+		hint := probeOS(ctx, c, ref, prefer)
+		cache[ref] = hint
+		return hint
+	}
+
+	hops.Kernel.resolvedOS = probe(hops.Kernel.From)
+	hops.Rootfs.resolvedOS = probe(hops.Rootfs.From)
+	for i := range hops.Rootfs.Includes {
+		hops.Rootfs.Includes[i].resolvedOS = probe(hops.Rootfs.Includes[i].From)
+	}
+}
+
 func hopsToPack(ctx context.Context, fileBytes []byte, buildContext string, c client.Client) (*PackInstructions, error) {
 	// Could not parse Containerfile-like syntax file.
 	// Try bunnyfile syntax.
@@ -136,13 +162,18 @@ func hopsToPack(ctx context.Context, fileBytes []byte, buildContext string, c cl
 		return nil, fmt.Errorf("failed while parsing as bunnyfile: %w", err)
 	}
 
+	framework := newFramework(hops.Platform, hops.Rootfs)
+
+	// Resolve the OS to pull each image reference with before building the LLB.
+	resolveOSHints(ctx, c, hops, framework)
+
 	packInst, err := ToPack(hops, buildContext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert hops to pack instructions: %w", err)
 	}
 
 	// Get the OCI Image config of the base Image if there is any
-	baseImg, err := getBaseConfig(ctx, c, packInst.BaseRef, packInst.Annots["com.urunc.unikernel.hypervisor"])
+	baseImg, err := getBaseConfig(ctx, c, packInst.BaseRef, packInst.BaseOS)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get OCI config of base image %s: %w", packInst.BaseRef, err)
 	}
