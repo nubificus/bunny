@@ -143,9 +143,9 @@ func TestGenericCreateRootfs(t *testing.T) {
 			Arch:    "bar",
 		}
 		rootfs := Rootfs{
-			From:     "foo",
-			Path:     "bar",
-			Type:     "raw",
+			From: "foo",
+			Path: "bar",
+			Type: "raw",
 			Includes: []FileToInclude{
 				{
 					Src: "foo",
@@ -188,9 +188,9 @@ func TestGenericCreateRootfs(t *testing.T) {
 			Arch:    "bar",
 		}
 		rootfs := Rootfs{
-			From:     "foo",
-			Path:     "bar",
-			Type:     "initrd",
+			From: "foo",
+			Path: "bar",
+			Type: "initrd",
 			Includes: []FileToInclude{
 				{
 					Src: "foo",
@@ -268,9 +268,9 @@ func TestGenericCreateRootfs(t *testing.T) {
 			Arch:    "bar",
 		}
 		rootfs := Rootfs{
-			From:     "foo",
-			Path:     "bar",
-			Type:     "qwe",
+			From: "foo",
+			Path: "bar",
+			Type: "qwe",
 			Includes: []FileToInclude{
 				{
 					Src: "foo",

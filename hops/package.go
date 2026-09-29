@@ -282,7 +282,7 @@ func (i *PackInstructions) SetBaseAndGetPaths(kEntry *PackEntry, rEntry *PackEnt
 
 // SetAnnotations set all annotations required for urunc.
 // It returns an error if something went wrong
-func (i *PackInstructions) SetAnnotations(p Platform, cmd []string, kernelPath string, rootfsPath string, rootfsType string) error {
+func (i *PackInstructions) SetAnnotations(p Platform, _ []string, kernelPath string, rootfsPath string, rootfsType string) error {
 	// Set basic annotations for urunc's functionality
 	i.Annots["com.urunc.unikernel.unikernelType"] = p.Framework
 	i.Annots["com.urunc.unikernel.hypervisor"] = p.Monitor

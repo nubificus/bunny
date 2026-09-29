@@ -166,8 +166,8 @@ func TestUnikraftCreateRootfs(t *testing.T) {
 			Arch:    "bar",
 		}
 		rootfs := Rootfs{
-			From:     "scratch",
-			Type:     "initrd",
+			From: "scratch",
+			Type: "initrd",
 			Includes: []FileToInclude{
 				{
 					Src: "foo",
