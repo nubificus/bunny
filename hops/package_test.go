@@ -145,8 +145,8 @@ func TestPackHandleRootfs(t *testing.T) {
 			Monitor:   "qemu",
 		}
 		r := Rootfs{
-			From:     "local",
-			Path:     "rootfs",
+			From: "local",
+			Path: "rootfs",
 			Includes: []FileToInclude{
 				{
 					Src: "foo",
@@ -174,7 +174,7 @@ func TestPackHandleRootfs(t *testing.T) {
 			Monitor:   "qemu",
 		}
 		r := Rootfs{
-			From:     "scratch",
+			From: "scratch",
 			Includes: []FileToInclude{
 				{
 					Src: "foo",
@@ -205,8 +205,8 @@ func TestPackHandleRootfs(t *testing.T) {
 			Monitor:   "qemu",
 		}
 		r := Rootfs{
-			From:     "",
-			Type:     "raw",
+			From: "",
+			Type: "raw",
 			Includes: []FileToInclude{
 				{
 					Src: "foo",
@@ -935,7 +935,7 @@ func TestPackToPack(t *testing.T) {
 				Path: "kernel",
 			},
 			Rootfs: Rootfs{
-				From:     "scratch",
+				From: "scratch",
 				Includes: []FileToInclude{
 					{
 						Src: "foo",
@@ -996,7 +996,7 @@ func TestPackToPack(t *testing.T) {
 				Path: "kernel",
 			},
 			Rootfs: Rootfs{
-				From:     "scratch",
+				From: "scratch",
 				Includes: []FileToInclude{
 					{
 						Src: "foo",
@@ -1182,7 +1182,7 @@ func TestPackToPack(t *testing.T) {
 				Path: "kernel",
 			},
 			Rootfs: Rootfs{
-				From:     "scratch",
+				From: "scratch",
 				Includes: []FileToInclude{
 					{
 						Src: "foo",
