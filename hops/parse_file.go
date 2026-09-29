@@ -257,11 +257,11 @@ func containerfileToPack(state *llb.State, img *dockerspec.DockerOCIImage) (*Pac
 // If that fails, then it attempts to read it using the bunnyfile format.
 func ParseFile(ctx context.Context, fileBytes []byte, buildContext string, c client.Client) (*PackInstructions, error) {
 	// Try to parse the file with dockerfile2LLB
-	state, img, _, _, derr := dockerfile2llb.Dockerfile2LLB(ctx, fileBytes, dockerfile2llb.ConvertOpt{
+	res, derr := dockerfile2llb.Dockerfile2LLB(ctx, fileBytes, dockerfile2llb.ConvertOpt{
 		MetaResolver: c,
 	})
 	if derr == nil {
-		return containerfileToPack(state, img)
+		return containerfileToPack(&res.State, res.Image)
 	}
 	derr = fmt.Errorf("error while parsing as containerfile: %w", derr)
 
