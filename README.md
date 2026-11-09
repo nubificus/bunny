@@ -77,6 +77,8 @@ cmd: ["app"]                                    # [7] The command line arguments
 
 entrypoint: ["init"]                            # [8] The entrypoint of the container
 
+workdir: /app                                   # [9] The working directory of the container
+
 ```
 
 The fields of `bunnyfile` in more details:
@@ -101,6 +103,12 @@ The fields of `bunnyfile` in more details:
 | 6   | Environment variables | no | list of `KEY:VALUE` strings | - |
 | 7   | Command line of the application | no | `[string, string, ...]` | - |
 | 8   | Entrypoint of the container | no | `[string, string, ...]` | - |
+| 9   | Working directory of the container | no | absolute path | inherited from the base image, if any |
+
+When `bunny` assembles the rootfs, meaning a `raw` rootfs or an `initrd` built
+from `include`, it also creates the `workdir` directory inside it. A prebuilt
+rootfs file (set with `path`) is used as is, so it must already contain that
+directory.
 
 ### The `rootfs` field
 

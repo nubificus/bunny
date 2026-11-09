@@ -71,6 +71,7 @@ type Hops struct {
 	Cmd        []string `yaml:"cmd"`
 	Entrypoint []string `yaml:"entrypoint"`
 	Envs       []string `yaml:"envs"`
+	Workdir    string   `yaml:"workdir"`
 }
 
 // A struct to represent a copy operation in the final image
@@ -140,8 +141,9 @@ func handleRootfs(f Framework, buildContext string, r Rootfs) (*PackEntry, error
 	case "scratch", "":
 		// The from field of rootfs is scratch or empty, hence we need to create
 		// a rootfs or just here is no rootfs entry. This depends on the contents
-		// of Includes.
-		if len(r.Includes) != 0 {
+		// of Includes, or an explicitly requested raw rootfs, which might be
+		// empty but must still contain the workdir.
+		if len(r.Includes) != 0 || r.Type == "raw" {
 			// If the user has not specified a type, then CreateRootfs
 			// will build the default rootfs type for the specified framework.
 			var err error
@@ -157,7 +159,8 @@ func handleRootfs(f Framework, buildContext string, r Rootfs) (*PackEntry, error
 			}
 		}
 	default:
-		if len(r.Includes) != 0 {
+		switch {
+		case len(r.Includes) != 0:
 			// TODO Remove below if and support appending other tpyes
 			// of rootfs too
 			if r.Type != "raw" {
@@ -171,10 +174,19 @@ func handleRootfs(f Framework, buildContext string, r Rootfs) (*PackEntry, error
 			// TODO: Change this when we have support for updating
 			// more rootfs types
 			entry.FilePath = ""
-		} else {
+		case f.GetRootfsType() == "raw":
+			// A raw rootfs from an image without any files to include.
+			// The image itself is the rootfs, but the framework still
+			// updates it, since it might need to add content to it
+			// (e.g. the workdir).
+			var err error
+			entry.SourceState, err = f.UpdateRootfs(buildContext)
+			if err != nil {
+				return nil, fmt.Errorf("Could not update rootfs: %v", err)
+			}
+			entry.FilePath = ""
+		default:
 			entry.SourceState = GetSourceState(r.From, r.resolvedOS)
-			// TODO: Be aware of the case r.Path is empty,
-			// which means we have a raw rootfs from an image.
 			entry.FilePath = r.Path
 		}
 	}
@@ -319,10 +331,11 @@ func (i *PackInstructions) SetAnnotations(p Platform, _ []string, kernelPath str
 
 // UpdateConfig fills all the information given by the user for the
 // fields in the OCI image's config
-func (i *PackInstructions) UpdateConfig(cmd []string, entryp []string, ev []string) {
+func (i *PackInstructions) UpdateConfig(cmd []string, entryp []string, ev []string, wd string) {
 	i.Img.Config.Cmd = cmd
 	i.Img.Config.Entrypoint = entryp
 	i.Img.Config.Env = ev
+	i.Img.Config.WorkingDir = wd
 }
 
 // ToPack converts Hops into PackInstructions
@@ -333,7 +346,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 
 	// Get the framework and call the respective function to create the
 	// rootfs.
-	framework := newFramework(h.Platform, h.Rootfs)
+	framework := newFramework(h.Platform, h.Rootfs, h.Workdir)
 
 	kernelEntry, err := handleKernel(framework, buildContext, h.Kernel)
 	if err != nil {
@@ -361,7 +374,7 @@ func ToPack(h *Hops, buildContext string) (*PackInstructions, error) {
 		return nil, fmt.Errorf("Error setting annotations: %v", err)
 	}
 
-	instr.UpdateConfig(h.Cmd, h.Entrypoint, h.Envs)
+	instr.UpdateConfig(h.Cmd, h.Entrypoint, h.Envs, h.Workdir)
 
 	return instr, nil
 }

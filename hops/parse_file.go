@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/moby/buildkit/client/llb"
@@ -118,6 +119,17 @@ func ParseBunnyfile(fileBytes []byte) (*Hops, error) {
 		return nil, errors.Join(errInvalidBunnyfile, err)
 	}
 
+	err = ValidateWorkdir(bunnyHops.Workdir)
+	if err != nil {
+		return nil, errors.Join(errInvalidBunnyfile, err)
+	}
+	// Use the same canonical path for the image config and for the directory
+	// that gets created in the rootfs. Otherwise, a workdir like /missing/..
+	// would point to a directory that might not exist.
+	if bunnyHops.Workdir != "" {
+		bunnyHops.Workdir = path.Clean(bunnyHops.Workdir)
+	}
+
 	// TODO: Remove this in next release.
 	// Keep backwards compatibility and if cmd is empty, then
 	// use cmdline. Otherwise, the Cmdline is ignored.
@@ -162,7 +174,7 @@ func hopsToPack(ctx context.Context, fileBytes []byte, buildContext string, c cl
 		return nil, fmt.Errorf("failed while parsing as bunnyfile: %w", err)
 	}
 
-	framework := newFramework(hops.Platform, hops.Rootfs)
+	framework := newFramework(hops.Platform, hops.Rootfs, hops.Workdir)
 
 	// Resolve the OS to pull each image reference with before building the LLB.
 	resolveOSHints(ctx, c, hops, framework)
@@ -183,6 +195,9 @@ func hopsToPack(ctx context.Context, fileBytes []byte, buildContext string, c cl
 	}
 	if len(packInst.Img.Config.Entrypoint) > 0 {
 		baseImg.Config.Entrypoint = packInst.Img.Config.Entrypoint
+	}
+	if packInst.Img.Config.WorkingDir != "" {
+		baseImg.Config.WorkingDir = packInst.Img.Config.WorkingDir
 	}
 	baseImg.Config.Env = append(baseImg.Config.Env, packInst.Img.Config.Env...)
 	packInst.Img = baseImg

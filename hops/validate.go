@@ -16,6 +16,7 @@ package hops
 
 import (
 	"fmt"
+	"path"
 
 	"github.com/hashicorp/go-version"
 )
@@ -98,6 +99,18 @@ func ValidateKernel(kernel Kernel) error {
 	}
 	if kernel.Path == "" {
 		return fmt.Errorf("The path field of kernel is necessary")
+	}
+
+	return nil
+}
+
+// ValidateWorkdir checks if user input meets all conditions regarding the
+// workdir field. The conditions are:
+// 1) if set, it must be an absolute path, since the OCI runtime spec
+// requires the process cwd to be absolute
+func ValidateWorkdir(wd string) error {
+	if wd != "" && !path.IsAbs(wd) {
+		return fmt.Errorf("The workdir field must be an absolute path, got %s", wd)
 	}
 
 	return nil
