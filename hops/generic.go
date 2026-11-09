@@ -29,9 +29,10 @@ type GenericInfo struct {
 	Monitor string
 	Arch    string
 	Rootfs  Rootfs
+	Workdir string
 }
 
-func NewGeneric(plat Platform, rfs Rootfs) *GenericInfo {
+func NewGeneric(plat Platform, rfs Rootfs, workdir string) *GenericInfo {
 	if rfs.Type == "" {
 		rfs.Type = "raw"
 	}
@@ -40,6 +41,7 @@ func NewGeneric(plat Platform, rfs Rootfs) *GenericInfo {
 		Monitor: plat.Monitor,
 		Arch:    plat.Arch,
 		Rootfs:  rfs,
+		Workdir: workdir,
 	}
 }
 
@@ -85,9 +87,11 @@ func (i *GenericInfo) CreateRootfs(buildContext string) (llb.State, error) {
 	switch i.Rootfs.Type {
 	case "initrd":
 		contentState := FilesLLB(i.Rootfs.Includes, buildContext, llb.Scratch())
+		contentState = MkdirLLB(contentState, i.Workdir)
 		return InitrdLLB(contentState), nil
 	case "raw":
-		return FilesLLB(i.Rootfs.Includes, buildContext, llb.Scratch()), nil
+		contentState := FilesLLB(i.Rootfs.Includes, buildContext, llb.Scratch())
+		return MkdirLLB(contentState, i.Workdir), nil
 	default:
 		// We should never reach this point
 		return llb.Scratch(), fmt.Errorf("Unsupported rootfs type %s", i.Rootfs.Type)
@@ -100,7 +104,8 @@ func (i *GenericInfo) UpdateRootfs(buildContext string) (llb.State, error) {
 	case "initrd":
 		return llb.Scratch(), fmt.Errorf("Can not update an initrd rootfs")
 	case "raw":
-		return FilesLLB(i.Rootfs.Includes, buildContext, base), nil
+		contentState := FilesLLB(i.Rootfs.Includes, buildContext, base)
+		return MkdirLLB(contentState, i.Workdir), nil
 	default:
 		// We should never reach this point
 		return llb.Scratch(), fmt.Errorf("Unsupported rootfs type %s", i.Rootfs.Type)

@@ -17,6 +17,7 @@ package hops
 import (
 	"context"
 	"runtime"
+	"strconv"
 	"testing"
 
 	"github.com/moby/buildkit/client/llb"
@@ -109,6 +110,20 @@ func TestLLBFiles(t *testing.T) {
 		require.Equal(t, "local://context", s.Identifier)
 		d := arr[0].Op.(*pb.Op_Source).Source
 		require.Equal(t, "docker-image://docker.io/library/foo:latest", d.Identifier)
+	})
+	t.Run("Empty files list keeps the destination", func(t *testing.T) {
+		dst := llb.Image("foo")
+		files := []FileToInclude{}
+
+		state := FilesLLB(files, "context", dst)
+		def, err := state.Marshal(context.TODO())
+
+		require.NoError(t, err)
+		_, arr := parseDef(t, def.Def)
+		// The image source and the final output
+		require.Equal(t, 2, len(arr))
+		s := arr[0].Op.(*pb.Op_Source).Source
+		require.Equal(t, "docker-image://docker.io/library/foo:latest", s.Identifier)
 	})
 	t.Run("Empty files list", func(t *testing.T) {
 		dst := llb.Scratch()
@@ -311,6 +326,141 @@ func TestLLBBase(t *testing.T) {
 		require.Equal(t, runtime.GOARCH, p.Architecture)
 		require.Equal(t, "bar", p.OS)
 	})
+}
+
+func TestLLBMkdir(t *testing.T) {
+	for _, dir := range []string{"", "/", "//"} {
+		t.Run("No-op for "+strconv.Quote(dir), func(t *testing.T) {
+			state := MkdirLLB(llb.Image("foo"), dir)
+			def, err := state.Marshal(context.TODO())
+
+			require.NoError(t, err)
+			_, arr := parseDef(t, def.Def)
+			// Only the image source and the final output
+			require.Equal(t, 2, len(arr))
+			s := arr[0].Op.(*pb.Op_Source).Source
+			require.Equal(t, "docker-image://docker.io/library/foo:latest", s.Identifier)
+		})
+	}
+	t.Run("Create directory with parents", func(t *testing.T) {
+		state := MkdirLLB(llb.Image("foo"), "/app/data")
+		def, err := state.Marshal(context.TODO())
+
+		require.NoError(t, err)
+		m, arr := parseDef(t, def.Def)
+		// The image source, the mkdir and the final output
+		require.Equal(t, 3, len(arr))
+		last := arr[len(arr)-1]
+		require.Equal(t, 1, len(last.Inputs))
+		require.Equal(t, m[last.Inputs[0].Digest], arr[1])
+		f := arr[1]
+		// The mkdir should be on top of the state we passed
+		require.Equal(t, 1, len(f.Inputs))
+		require.Equal(t, m[f.Inputs[0].Digest], arr[0])
+		ff := f.Op.(*pb.Op_File).File
+		require.Equal(t, 1, len(ff.Actions))
+		mkdir := ff.Actions[0].Action.(*pb.FileAction_Mkdir).Mkdir
+		require.Equal(t, "/app/data", mkdir.Path)
+		require.Equal(t, int32(0755), mkdir.Mode)
+		require.True(t, mkdir.MakeParents)
+		// The directory is owned by root
+		require.Nil(t, mkdir.Owner)
+	})
+}
+
+// mkdirPaths returns the paths of all mkdir actions in the LLB graph of s.
+func mkdirPaths(t *testing.T, s llb.State) []string {
+	def, err := s.Marshal(context.TODO())
+	require.NoError(t, err)
+	_, arr := parseDef(t, def.Def)
+	paths := []string{}
+	for _, op := range arr {
+		f, ok := op.Op.(*pb.Op_File)
+		if !ok {
+			continue
+		}
+		for _, a := range f.File.Actions {
+			if m, ok := a.Action.(*pb.FileAction_Mkdir); ok {
+				paths = append(paths, m.Mkdir.Path)
+			}
+		}
+	}
+
+	return paths
+}
+
+// requireMkdirOnIncludes checks that op creates dir on top of the copied
+// include files.
+func requireMkdirOnIncludes(t *testing.T, m map[string]*pb.Op, op *pb.Op, dir string) {
+	f, ok := op.Op.(*pb.Op_File)
+	require.True(t, ok, "Expected a file op")
+	require.Equal(t, 1, len(f.File.Actions))
+	mkdir, ok := f.File.Actions[0].Action.(*pb.FileAction_Mkdir)
+	require.True(t, ok, "Expected a mkdir action")
+	require.Equal(t, dir, mkdir.Mkdir.Path)
+	require.True(t, mkdir.Mkdir.MakeParents)
+	// The include files are the first input of the mkdir
+	require.LessOrEqual(t, 1, len(op.Inputs))
+	files, ok := m[op.Inputs[0].Digest].Op.(*pb.Op_File)
+	require.True(t, ok, "Expected the include files to be a file op")
+	require.Equal(t, 1, len(files.File.Actions))
+	_, isCopy := files.File.Actions[0].Action.(*pb.FileAction_Copy)
+	require.True(t, isCopy, "Expected the include files to be copied")
+}
+
+// requireRawRootfsMkdir checks that a raw rootfs state ends with creating dir
+// on top of the include files.
+func requireRawRootfsMkdir(t *testing.T, s llb.State, dir string) {
+	def, err := s.Marshal(context.TODO())
+	require.NoError(t, err)
+	m, arr := parseDef(t, def.Def)
+	// The final output has a single input, which is the last operation
+	last := arr[len(arr)-1]
+	require.Equal(t, 1, len(last.Inputs))
+	requireMkdirOnIncludes(t, m, m[last.Inputs[0].Digest], dir)
+}
+
+// requireImageMkdir checks that s creates dir directly on top of the image
+// with the given identifier.
+func requireImageMkdir(t *testing.T, s llb.State, dir string, image string) {
+	def, err := s.Marshal(context.TODO())
+	require.NoError(t, err)
+	m, arr := parseDef(t, def.Def)
+	// The image source, the mkdir and the final output
+	require.Equal(t, 3, len(arr))
+	last := arr[len(arr)-1]
+	require.Equal(t, 1, len(last.Inputs))
+	op := m[last.Inputs[0].Digest]
+	f, ok := op.Op.(*pb.Op_File)
+	require.True(t, ok, "Expected a file op")
+	require.Equal(t, 1, len(f.File.Actions))
+	mkdir, ok := f.File.Actions[0].Action.(*pb.FileAction_Mkdir)
+	require.True(t, ok, "Expected a mkdir action")
+	require.Equal(t, dir, mkdir.Mkdir.Path)
+	require.True(t, mkdir.Mkdir.MakeParents)
+	require.Equal(t, 1, len(op.Inputs))
+	src, ok := m[op.Inputs[0].Digest].Op.(*pb.Op_Source)
+	require.True(t, ok, "Expected the mkdir to be on top of the image")
+	require.Equal(t, image, src.Source.Identifier)
+}
+
+// requireInitrdContentMkdir checks that the content packed by the cpio exec
+// of an initrd state is the include list with dir created on top of it.
+func requireInitrdContentMkdir(t *testing.T, s llb.State, dir string) {
+	def, err := s.Marshal(context.TODO())
+	require.NoError(t, err)
+	m, arr := parseDef(t, def.Def)
+	var exec *pb.Op
+	for _, op := range arr {
+		if _, ok := op.Op.(*pb.Op_Exec); ok {
+			require.Nil(t, exec, "Expected a single exec op")
+			exec = op
+		}
+	}
+	require.NotNil(t, exec)
+	// The last input of the cpio exec is the content of the initrd
+	require.Equal(t, 3, len(exec.Inputs))
+	requireMkdirOnIncludes(t, m, m[exec.Inputs[2].Digest], dir)
 }
 
 func parseDef(t *testing.T, def [][]byte) (map[string]*pb.Op, []*pb.Op) {

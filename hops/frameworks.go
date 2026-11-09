@@ -32,13 +32,13 @@ type Framework interface {
 }
 
 // newFramework selects the Framework implementation for the given platform.
-func newFramework(plat Platform, rfs Rootfs) Framework {
+func newFramework(plat Platform, rfs Rootfs, workdir string) Framework {
 	switch plat.Framework {
 	case unikraftName:
-		return NewUnikraft(plat, rfs)
+		return NewUnikraft(plat, rfs, workdir)
 	case freebsdName:
-		return NewFreeBSD(plat, rfs)
+		return NewFreeBSD(plat, rfs, workdir)
 	default:
-		return NewGeneric(plat, rfs)
+		return NewGeneric(plat, rfs, workdir)
 	}
 }

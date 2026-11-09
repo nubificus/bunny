@@ -35,8 +35,28 @@ func TestFrameworkPreferredOS(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			f := newFramework(Platform{Framework: tc.framework, Monitor: tc.monitor}, Rootfs{})
+			f := newFramework(Platform{Framework: tc.framework, Monitor: tc.monitor}, Rootfs{}, "")
 			require.Equal(t, tc.expected, f.PreferredOS())
+		})
+	}
+}
+
+func TestFrameworkWorkdir(t *testing.T) {
+	for _, framework := range []string{"unikraft", "freebsd", "linux"} {
+		t.Run(framework, func(t *testing.T) {
+			f := newFramework(Platform{Framework: framework, Monitor: "qemu"}, Rootfs{}, "/app")
+			var workdir string
+			switch fw := f.(type) {
+			case *UnikraftInfo:
+				workdir = fw.Workdir
+			case *FreeBSDInfo:
+				workdir = fw.Workdir
+			case *GenericInfo:
+				workdir = fw.Workdir
+			default:
+				require.Failf(t, "Unexpected framework", "%T", f)
+			}
+			require.Equal(t, "/app", workdir)
 		})
 	}
 }

@@ -32,10 +32,11 @@ func TestGenericNew(t *testing.T) {
 		}
 		rootfs := Rootfs{}
 
-		generic := NewGeneric(plat, rootfs)
+		generic := NewGeneric(plat, rootfs, "")
 		require.Equal(t, plat.Version, generic.Version)
 		require.Equal(t, plat.Monitor, generic.Monitor)
 		require.Equal(t, plat.Arch, generic.Arch)
+		require.Empty(t, generic.Workdir)
 		require.Equal(t, "raw", generic.Rootfs.Type)
 	})
 	t.Run("With rootfs type", func(t *testing.T) {
@@ -51,10 +52,11 @@ func TestGenericNew(t *testing.T) {
 			Includes: []FileToInclude{},
 		}
 
-		generic := NewGeneric(plat, rootfs)
+		generic := NewGeneric(plat, rootfs, "/app")
 		require.Equal(t, plat.Version, generic.Version)
 		require.Equal(t, plat.Monitor, generic.Monitor)
 		require.Equal(t, plat.Arch, generic.Arch)
+		require.Equal(t, "/app", generic.Workdir)
 		require.Equal(t, rootfs.From, generic.Rootfs.From)
 		require.Equal(t, rootfs.Path, generic.Rootfs.Path)
 		require.Equal(t, rootfs.Type, generic.Rootfs.Type)
@@ -77,7 +79,7 @@ func TestGenericGetRootfsType(t *testing.T) {
 		}
 		rootfs := Rootfs{}
 
-		generic := NewGeneric(plat, rootfs)
+		generic := NewGeneric(plat, rootfs, "")
 		require.Equal(t, "raw", generic.GetRootfsType())
 
 	})
@@ -94,7 +96,7 @@ func TestGenericGetRootfsType(t *testing.T) {
 			Includes: []FileToInclude{},
 		}
 
-		generic := NewGeneric(plat, rootfs)
+		generic := NewGeneric(plat, rootfs, "")
 		require.Equal(t, "initrd", generic.GetRootfsType())
 	})
 }
@@ -154,7 +156,7 @@ func TestGenericCreateRootfs(t *testing.T) {
 			},
 		}
 
-		generic := NewGeneric(plat, rootfs)
+		generic := NewGeneric(plat, rootfs, "")
 		state, err := generic.CreateRootfs("context")
 		require.NoError(t, err)
 		def, err := state.Marshal(context.TODO())
@@ -203,7 +205,7 @@ func TestGenericCreateRootfs(t *testing.T) {
 			},
 		}
 
-		generic := NewGeneric(plat, rootfs)
+		generic := NewGeneric(plat, rootfs, "")
 		state, err := generic.CreateRootfs("context")
 		require.NoError(t, err)
 		def, err := state.Marshal(context.TODO())
@@ -279,7 +281,7 @@ func TestGenericCreateRootfs(t *testing.T) {
 			},
 		}
 
-		generic := NewGeneric(plat, rootfs)
+		generic := NewGeneric(plat, rootfs, "")
 		_, err := generic.CreateRootfs("context")
 		require.ErrorContains(t, err, "Unsupported rootfs type")
 	})
@@ -293,4 +295,116 @@ func TestGenericBuildKernel(t *testing.T) {
 	require.NoError(t, err)
 	_, arr := parseDef(t, def.Def)
 	require.Equal(t, 0, len(arr))
+}
+
+func TestGenericCreateRootfsWorkdir(t *testing.T) {
+	plat := Platform{
+		Monitor: "qemu",
+	}
+	includes := []FileToInclude{
+		{
+			Src: "foo",
+			Dst: "bar",
+		},
+	}
+	t.Run("Initrd from includes contains the workdir", func(t *testing.T) {
+		rootfs := Rootfs{
+			From:     "scratch",
+			Type:     "initrd",
+			Includes: includes,
+		}
+		generic := NewGeneric(plat, rootfs, "/app")
+		state, err := generic.CreateRootfs("context")
+		require.NoError(t, err)
+		requireInitrdContentMkdir(t, state, "/app")
+	})
+	t.Run("Initrd from includes without workdir", func(t *testing.T) {
+		rootfs := Rootfs{
+			From:     "scratch",
+			Type:     "initrd",
+			Includes: includes,
+		}
+		generic := NewGeneric(plat, rootfs, "")
+		state, err := generic.CreateRootfs("context")
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"/tmp", "/.boot"}, mkdirPaths(t, state))
+	})
+	t.Run("Raw rootfs from includes contains the workdir", func(t *testing.T) {
+		rootfs := Rootfs{
+			From:     "scratch",
+			Type:     "raw",
+			Includes: includes,
+		}
+		generic := NewGeneric(plat, rootfs, "/app")
+		state, err := generic.CreateRootfs("context")
+		require.NoError(t, err)
+		requireRawRootfsMkdir(t, state, "/app")
+	})
+	t.Run("Raw rootfs from includes without workdir", func(t *testing.T) {
+		rootfs := Rootfs{
+			From:     "scratch",
+			Type:     "raw",
+			Includes: includes,
+		}
+		generic := NewGeneric(plat, rootfs, "")
+		state, err := generic.CreateRootfs("context")
+		require.NoError(t, err)
+		require.Empty(t, mkdirPaths(t, state))
+	})
+}
+
+func TestGenericUpdateRootfsWorkdir(t *testing.T) {
+	plat := Platform{
+		Monitor: "qemu",
+	}
+	rootfs := Rootfs{
+		From: "foo",
+		Type: "raw",
+		Includes: []FileToInclude{
+			{
+				Src: "foo",
+				Dst: "bar",
+			},
+		},
+	}
+	t.Run("Raw rootfs from image and includes contains the workdir", func(t *testing.T) {
+		generic := NewGeneric(plat, rootfs, "/app")
+		state, err := generic.UpdateRootfs("context")
+		require.NoError(t, err)
+		requireRawRootfsMkdir(t, state, "/app")
+		def, err := state.Marshal(context.TODO())
+		require.NoError(t, err)
+		_, arr := parseDef(t, def.Def)
+		// The include files are copied on top of the image
+		s := arr[0].Op.(*pb.Op_Source).Source
+		require.Equal(t, "docker-image://docker.io/library/foo:latest", s.Identifier)
+	})
+	t.Run("Raw rootfs from image and includes without workdir", func(t *testing.T) {
+		generic := NewGeneric(plat, rootfs, "")
+		state, err := generic.UpdateRootfs("context")
+		require.NoError(t, err)
+		require.Empty(t, mkdirPaths(t, state))
+	})
+	imageOnly := Rootfs{
+		From: "foo",
+		Type: "raw",
+	}
+	t.Run("Raw rootfs from image contains the workdir", func(t *testing.T) {
+		generic := NewGeneric(plat, imageOnly, "/app")
+		state, err := generic.UpdateRootfs("context")
+		require.NoError(t, err)
+		requireImageMkdir(t, state, "/app", "docker-image://docker.io/library/foo:latest")
+	})
+	t.Run("Raw rootfs from image without workdir is the image", func(t *testing.T) {
+		generic := NewGeneric(plat, imageOnly, "")
+		state, err := generic.UpdateRootfs("context")
+		require.NoError(t, err)
+		def, err := state.Marshal(context.TODO())
+		require.NoError(t, err)
+		_, arr := parseDef(t, def.Def)
+		// The image source and the final output
+		require.Equal(t, 2, len(arr))
+		s := arr[0].Op.(*pb.Op_Source).Source
+		require.Equal(t, "docker-image://docker.io/library/foo:latest", s.Identifier)
+	})
 }

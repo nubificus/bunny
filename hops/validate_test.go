@@ -274,3 +274,47 @@ func TestValidateBunnyfileKernel(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateBunnyfileWorkdir(t *testing.T) {
+	tests := []testInfo{
+		{
+			name:        "Valid unset workdir",
+			input:       "",
+			expectError: false,
+		},
+		{
+			name:        "Valid root workdir",
+			input:       "/",
+			expectError: false,
+		},
+		{
+			name:        "Valid absolute workdir",
+			input:       "/home/app",
+			expectError: false,
+		},
+		{
+			name:        "Invalid relative workdir",
+			input:       "app",
+			expectError: true,
+			errorText:   "The workdir field must be an absolute path",
+		},
+		{
+			name:        "Invalid dot-relative workdir",
+			input:       "./app",
+			expectError: true,
+			errorText:   "The workdir field must be an absolute path",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateWorkdir(tc.input)
+			if tc.expectError {
+				require.Error(t, err, "Expected an error, got nil")
+				require.Contains(t, err.Error(), tc.errorText)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

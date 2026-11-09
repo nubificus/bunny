@@ -15,6 +15,7 @@
 package hops
 
 import (
+	"path"
 	"runtime"
 
 	"github.com/moby/buildkit/client/llb"
@@ -25,12 +26,12 @@ const (
 	defaultBsdcpioImage string = "harbor.nbfc.io/nubificus/bunny/libarchive:latest"
 )
 
-// Create a LLB State that simply copies all the files in the include list inside
-// an empty image
+// Create a LLB State that copies all the files in the include list inside
+// toState. An empty include list returns toState unchanged.
 func FilesLLB(fileList []FileToInclude, buildContext string, toState llb.State) llb.State {
-	retState := llb.Scratch()
+	retState := toState
 	local := llb.Local(buildContext)
-	for i, file := range fileList {
+	for _, file := range fileList {
 		var aCopy PackCopies
 
 		fromState := local
@@ -40,11 +41,7 @@ func FilesLLB(fileList []FileToInclude, buildContext string, toState llb.State) 
 		aCopy.SrcState = fromState
 		aCopy.SrcPath = file.Src
 		aCopy.DstPath = file.Dst
-		if i == 0 {
-			retState = CopyLLB(toState, aCopy)
-		} else {
-			retState = CopyLLB(retState, aCopy)
-		}
+		retState = CopyLLB(retState, aCopy)
 	}
 
 	return retState
@@ -67,6 +64,17 @@ func getArtifacts(exec llb.ExecState, outDir string) llb.StateOption {
 	return func(target llb.State) llb.State {
 		return exec.AddMount(outDir, target, llb.SourcePath(outDir))
 	}
+}
+
+// MkdirLLB returns a State where dir exists, creating it along with any
+// missing parents, like "mkdir -p". If dir is empty or the root directory,
+// the State is returned unchanged.
+func MkdirLLB(s llb.State, dir string) llb.State {
+	if dir == "" || path.Clean(dir) == "/" {
+		return s
+	}
+
+	return s.File(llb.Mkdir(dir, 0755, llb.WithParents(true)))
 }
 
 func CopyLLB(to llb.State, from PackCopies) llb.State {

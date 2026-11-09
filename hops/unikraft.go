@@ -29,9 +29,10 @@ type UnikraftInfo struct {
 	Monitor string
 	Arch    string
 	Rootfs  Rootfs
+	Workdir string
 }
 
-func NewUnikraft(plat Platform, rfs Rootfs) *UnikraftInfo {
+func NewUnikraft(plat Platform, rfs Rootfs, workdir string) *UnikraftInfo {
 	if rfs.Type == "" {
 		rfs.Type = "initrd"
 	}
@@ -40,6 +41,7 @@ func NewUnikraft(plat Platform, rfs Rootfs) *UnikraftInfo {
 		Monitor: plat.Monitor,
 		Arch:    plat.Arch,
 		Rootfs:  rfs,
+		Workdir: workdir,
 	}
 }
 
@@ -98,9 +100,11 @@ func (i *UnikraftInfo) CreateRootfs(buildContext string) (llb.State, error) {
 	switch i.Rootfs.Type {
 	case "initrd":
 		contentState := FilesLLB(i.Rootfs.Includes, buildContext, llb.Scratch())
+		contentState = MkdirLLB(contentState, i.Workdir)
 		return InitrdLLB(contentState), nil
 	case "raw":
-		return FilesLLB(i.Rootfs.Includes, buildContext, llb.Scratch()), nil
+		contentState := FilesLLB(i.Rootfs.Includes, buildContext, llb.Scratch())
+		return MkdirLLB(contentState, i.Workdir), nil
 	default:
 		// We should never reach this point
 		return llb.Scratch(), fmt.Errorf("Unsupported rootfs type")
@@ -113,7 +117,8 @@ func (i *UnikraftInfo) UpdateRootfs(buildContext string) (llb.State, error) {
 	case "initrd":
 		return llb.Scratch(), fmt.Errorf("Can not update an initrd rootfs")
 	case "raw":
-		return FilesLLB(i.Rootfs.Includes, buildContext, base), nil
+		contentState := FilesLLB(i.Rootfs.Includes, buildContext, base)
+		return MkdirLLB(contentState, i.Workdir), nil
 	default:
 		// We should never reach this point
 		return llb.Scratch(), fmt.Errorf("Unsupported rootfs type")

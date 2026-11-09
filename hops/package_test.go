@@ -19,6 +19,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"runtime"
+	"slices"
 	"testing"
 
 	"github.com/moby/buildkit/client/llb"
@@ -56,7 +57,7 @@ func TestPackHandleKernel(t *testing.T) {
 			From: "local",
 			Path: "kernel",
 		}
-		f := NewGeneric(p, r)
+		f := NewGeneric(p, r, "")
 
 		e, err := handleKernel(f, "context", k)
 		require.NoError(t, err)
@@ -81,7 +82,7 @@ func TestPackHandleKernel(t *testing.T) {
 			From: "harbor.nbfc.io/foo",
 			Path: "kernel",
 		}
-		f := NewGeneric(p, r)
+		f := NewGeneric(p, r, "")
 
 		e, err := handleKernel(f, "context", k)
 		require.NoError(t, err)
@@ -104,7 +105,7 @@ func TestPackHandleRootfs(t *testing.T) {
 			Monitor:   "qemu",
 		}
 		r := Rootfs{}
-		f := NewGeneric(p, r)
+		f := NewGeneric(p, r, "")
 
 		e, err := handleRootfs(f, "context", r)
 		require.NoError(t, err)
@@ -125,7 +126,7 @@ func TestPackHandleRootfs(t *testing.T) {
 			From: "local",
 			Path: "rootfs",
 		}
-		f := NewGeneric(p, r)
+		f := NewGeneric(p, r, "")
 
 		e, err := handleRootfs(f, "context", r)
 		require.NoError(t, err)
@@ -154,7 +155,7 @@ func TestPackHandleRootfs(t *testing.T) {
 				},
 			},
 		}
-		f := NewGeneric(p, r)
+		f := NewGeneric(p, r, "")
 
 		e, err := handleRootfs(f, "context", r)
 		require.NoError(t, err)
@@ -182,7 +183,7 @@ func TestPackHandleRootfs(t *testing.T) {
 				},
 			},
 		}
-		f := NewUnikraft(p, r)
+		f := NewUnikraft(p, r, "")
 
 		e, err := handleRootfs(f, "context", r)
 		require.NoError(t, err)
@@ -214,7 +215,7 @@ func TestPackHandleRootfs(t *testing.T) {
 				},
 			},
 		}
-		f := NewGeneric(p, r)
+		f := NewGeneric(p, r, "")
 
 		e, err := handleRootfs(f, "context", r)
 		require.NoError(t, err)
@@ -242,6 +243,152 @@ func TestPackHandleRootfs(t *testing.T) {
 		require.Equal(t, "/foo", cp.Src)
 		require.Equal(t, "/bar", cp.Dest)
 	})
+	t.Run("Image as raw rootfs", func(t *testing.T) {
+		p := Platform{
+			Framework: "rumprun",
+			Monitor:   "qemu",
+		}
+		r := Rootfs{
+			From: "harbor.nbfc.io/foo",
+		}
+		f := NewGeneric(p, r, "")
+
+		e, err := handleRootfs(f, "context", r)
+		require.NoError(t, err)
+		require.NotNil(t, e)
+		require.Equal(t, r.From, e.SourceRef)
+		require.Empty(t, e.FilePath)
+		def, err := e.SourceState.Marshal(context.TODO())
+		require.NoError(t, err)
+		_, arr := parseDef(t, def.Def)
+		require.Equal(t, 2, len(arr))
+		s := arr[0].Op.(*pb.Op_Source).Source
+		require.Equal(t, "docker-image://harbor.nbfc.io/foo:latest", s.Identifier)
+	})
+	t.Run("Image as raw rootfs with workdir", func(t *testing.T) {
+		p := Platform{
+			Framework: "rumprun",
+			Monitor:   "qemu",
+		}
+		r := Rootfs{
+			From: "harbor.nbfc.io/foo",
+		}
+		f := NewGeneric(p, r, "/app")
+
+		e, err := handleRootfs(f, "context", r)
+		require.NoError(t, err)
+		require.NotNil(t, e)
+		require.Equal(t, r.From, e.SourceRef)
+		require.Empty(t, e.FilePath)
+		requireImageMkdir(t, e.SourceState, "/app", "docker-image://harbor.nbfc.io/foo:latest")
+	})
+	t.Run("Explicit raw rootfs from scratch", func(t *testing.T) {
+		p := Platform{
+			Framework: "rumprun",
+			Monitor:   "qemu",
+		}
+		r := Rootfs{
+			From: "scratch",
+			Type: "raw",
+		}
+		f := NewGeneric(p, r, "/app")
+
+		e, err := handleRootfs(f, "context", r)
+		require.NoError(t, err)
+		require.NotNil(t, e)
+		require.Equal(t, "scratch", e.SourceRef)
+		require.Empty(t, e.FilePath)
+		require.Equal(t, []string{"/app"}, mkdirPaths(t, e.SourceState))
+	})
+	t.Run("Explicit raw rootfs from scratch without workdir", func(t *testing.T) {
+		p := Platform{
+			Framework: "rumprun",
+			Monitor:   "qemu",
+		}
+		r := Rootfs{
+			From: "scratch",
+			Type: "raw",
+		}
+		f := NewGeneric(p, r, "")
+
+		e, err := handleRootfs(f, "context", r)
+		require.NoError(t, err)
+		require.NotNil(t, e)
+		require.Equal(t, "scratch", e.SourceRef)
+		require.Empty(t, e.FilePath)
+		def, err := e.SourceState.Marshal(context.TODO())
+		require.NoError(t, err)
+		_, arr := parseDef(t, def.Def)
+		require.Equal(t, 0, len(arr))
+	})
+	t.Run("Scratch without type and includes is no rootfs", func(t *testing.T) {
+		p := Platform{
+			Framework: "rumprun",
+			Monitor:   "qemu",
+		}
+		r := Rootfs{
+			From: "scratch",
+		}
+		f := NewGeneric(p, r, "/app")
+
+		e, err := handleRootfs(f, "context", r)
+		require.NoError(t, err)
+		require.NotNil(t, e)
+		require.Empty(t, mkdirPaths(t, e.SourceState))
+	})
+	t.Run("Image with path and default raw type", func(t *testing.T) {
+		// Generic frameworks default to a raw rootfs, where the image
+		// itself is the rootfs and the path is not used.
+		p := Platform{
+			Framework: "rumprun",
+			Monitor:   "qemu",
+		}
+		r := Rootfs{
+			From: "harbor.nbfc.io/foo",
+			Path: "/rootfs",
+		}
+		f := NewGeneric(p, r, "/app")
+
+		e, err := handleRootfs(f, "context", r)
+		require.NoError(t, err)
+		require.NotNil(t, e)
+		require.Empty(t, e.FilePath)
+		requireImageMkdir(t, e.SourceState, "/app", "docker-image://harbor.nbfc.io/foo:latest")
+	})
+	t.Run("Image with initrd type and without path", func(t *testing.T) {
+		// Only raw rootfs from an image goes through the framework.
+		p := Platform{
+			Framework: "unikraft",
+			Monitor:   "qemu",
+		}
+		r := Rootfs{
+			From: "harbor.nbfc.io/foo",
+		}
+		f := NewUnikraft(p, r, "/app")
+
+		e, err := handleRootfs(f, "context", r)
+		require.NoError(t, err)
+		require.NotNil(t, e)
+		require.Empty(t, mkdirPaths(t, e.SourceState))
+	})
+	t.Run("Image with prebuilt rootfs file and workdir", func(t *testing.T) {
+		p := Platform{
+			Framework: "rumprun",
+			Monitor:   "qemu",
+		}
+		r := Rootfs{
+			From: "harbor.nbfc.io/foo",
+			Path: "/initrd",
+			Type: "initrd",
+		}
+		f := NewGeneric(p, r, "/app")
+
+		e, err := handleRootfs(f, "context", r)
+		require.NoError(t, err)
+		require.NotNil(t, e)
+		require.Equal(t, r.Path, e.FilePath)
+		require.Empty(t, mkdirPaths(t, e.SourceState))
+	})
 	t.Run("Invalid unsupported type", func(t *testing.T) {
 		p := Platform{
 			Framework: "rumprun",
@@ -252,7 +399,7 @@ func TestPackHandleRootfs(t *testing.T) {
 			Path: "rootfs",
 			Type: "foo",
 		}
-		f := NewGeneric(p, r)
+		f := NewGeneric(p, r, "")
 
 		e, err := handleRootfs(f, "context", r)
 		require.Nil(t, e)
@@ -669,11 +816,14 @@ func TestPackToPack(t *testing.T) {
 				From: "local",
 				Path: "kernel",
 			},
-			Cmd: []string{"cmd"},
+			Cmd:     []string{"cmd"},
+			Workdir: "/app",
 		}
 		i, err := ToPack(hops, "context")
 		require.NoError(t, err)
 		require.NotNil(t, i)
+		require.Equal(t, "/app", i.Img.Config.WorkingDir)
+		require.Equal(t, hops.Cmd, i.Img.Config.Cmd)
 		require.Equal(t, "false", i.Annots["com.urunc.unikernel.mountRootfs"])
 		require.Equal(t, hops.Platform.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
 		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
@@ -713,6 +863,9 @@ func TestPackToPack(t *testing.T) {
 		i, err := ToPack(hops, "foo")
 		require.NoError(t, err)
 		require.NotNil(t, i)
+		// No workdir in the bunnyfile: leave it empty so the base image's
+		// WorkingDir is inherited later in hopsToPack.
+		require.Empty(t, i.Img.Config.WorkingDir)
 		require.Equal(t, "false", i.Annots["com.urunc.unikernel.mountRootfs"])
 		require.Equal(t, hops.Platform.Framework, i.Annots["com.urunc.unikernel.unikernelType"])
 		require.Equal(t, hops.Platform.Monitor, i.Annots["com.urunc.unikernel.hypervisor"])
@@ -1541,5 +1694,159 @@ func TestPackLLB(t *testing.T) {
 		require.Error(t, err)
 		require.Nil(t, result)
 		require.ErrorContains(t, err, "Failed to marshal")
+	})
+}
+
+func TestPackToPackWorkdir(t *testing.T) {
+	generic := Platform{
+		Framework: "rumprun",
+		Monitor:   "qemu",
+	}
+	unikraft := Platform{
+		Framework: "unikraft",
+		Monitor:   "qemu",
+	}
+	includes := []FileToInclude{
+		{
+			Src: "foo",
+			Dst: "bar",
+		},
+	}
+	tests := []struct {
+		name     string
+		platform Platform
+		rootfs   Rootfs
+		// The workdir is created in the base of the image (raw rootfs)
+		inBase bool
+		// The workdir is created inside a copied rootfs file (initrd)
+		inRootfsFile bool
+	}{
+		{
+			name:     "Raw rootfs from image",
+			platform: generic,
+			rootfs:   Rootfs{From: "harbor.nbfc.io/foo"},
+			inBase:   true,
+		},
+		{
+			name:     "Raw rootfs from image in unikraft",
+			platform: unikraft,
+			rootfs:   Rootfs{From: "harbor.nbfc.io/foo", Type: "raw"},
+			inBase:   true,
+		},
+		{
+			name:     "Raw rootfs from image with includes",
+			platform: generic,
+			rootfs:   Rootfs{From: "harbor.nbfc.io/foo", Type: "raw", Includes: includes},
+			inBase:   true,
+		},
+		{
+			name:     "Raw rootfs from includes",
+			platform: generic,
+			rootfs:   Rootfs{From: "scratch", Type: "raw", Includes: includes},
+			inBase:   true,
+		},
+		{
+			name:     "Explicit raw rootfs from scratch",
+			platform: generic,
+			rootfs:   Rootfs{From: "scratch", Type: "raw"},
+			inBase:   true,
+		},
+		{
+			name:     "Explicit raw rootfs from scratch in unikraft",
+			platform: unikraft,
+			rootfs:   Rootfs{From: "scratch", Type: "raw"},
+			inBase:   true,
+		},
+		{
+			name:     "No rootfs in generic framework",
+			platform: generic,
+			rootfs:   Rootfs{From: "scratch"},
+		},
+		{
+			name:         "Initrd from includes in generic framework",
+			platform:     generic,
+			rootfs:       Rootfs{From: "scratch", Type: "initrd", Includes: includes},
+			inRootfsFile: true,
+		},
+		{
+			name:         "Initrd from includes in unikraft",
+			platform:     unikraft,
+			rootfs:       Rootfs{From: "scratch", Includes: includes},
+			inRootfsFile: true,
+		},
+		{
+			name:     "No rootfs in unikraft",
+			platform: unikraft,
+			rootfs:   Rootfs{From: "scratch"},
+		},
+		{
+			name:     "Prebuilt local initrd",
+			platform: generic,
+			rootfs:   Rootfs{From: "local", Path: "initrd", Type: "initrd"},
+		},
+		{
+			name:     "Prebuilt initrd from image",
+			platform: generic,
+			rootfs:   Rootfs{From: "harbor.nbfc.io/foo", Path: "/initrd", Type: "initrd"},
+		},
+		{
+			name:     "Prebuilt block from image",
+			platform: generic,
+			rootfs:   Rootfs{From: "harbor.nbfc.io/foo", Path: "/disk.img", Type: "block"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			hops := &Hops{
+				Platform: tc.platform,
+				Kernel: Kernel{
+					From: "local",
+					Path: "kernel",
+				},
+				Rootfs:  tc.rootfs,
+				Workdir: "/app",
+			}
+			i, err := ToPack(hops, "context")
+			require.NoError(t, err)
+			require.NotNil(t, i)
+			require.Equal(t, "/app", i.Img.Config.WorkingDir)
+			require.Equal(t, tc.inBase, slices.Contains(mkdirPaths(t, i.Base), "/app"))
+			inRootfsFile := false
+			for _, c := range i.Copies {
+				if slices.Contains(mkdirPaths(t, c.SrcState), "/app") {
+					inRootfsFile = true
+				}
+			}
+			require.Equal(t, tc.inRootfsFile, inRootfsFile)
+		})
+	}
+	t.Run("Raw rootfs without workdir", func(t *testing.T) {
+		hops := &Hops{
+			Platform: generic,
+			Kernel: Kernel{
+				From: "local",
+				Path: "kernel",
+			},
+			Rootfs: Rootfs{From: "scratch", Type: "raw", Includes: includes},
+		}
+		i, err := ToPack(hops, "context")
+		require.NoError(t, err)
+		require.Empty(t, mkdirPaths(t, i.Base))
+	})
+	t.Run("Raw rootfs with root workdir", func(t *testing.T) {
+		hops := &Hops{
+			Platform: generic,
+			Kernel: Kernel{
+				From: "local",
+				Path: "kernel",
+			},
+			Rootfs:  Rootfs{From: "scratch", Type: "raw", Includes: includes},
+			Workdir: "/",
+		}
+		i, err := ToPack(hops, "context")
+		require.NoError(t, err)
+		require.Equal(t, "/", i.Img.Config.WorkingDir)
+		require.Empty(t, mkdirPaths(t, i.Base))
 	})
 }

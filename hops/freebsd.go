@@ -24,8 +24,8 @@ type FreeBSDInfo struct {
 	GenericInfo
 }
 
-func NewFreeBSD(plat Platform, rfs Rootfs) *FreeBSDInfo {
-	return &FreeBSDInfo{*NewGeneric(plat, rfs)}
+func NewFreeBSD(plat Platform, rfs Rootfs, workdir string) *FreeBSDInfo {
+	return &FreeBSDInfo{*NewGeneric(plat, rfs, workdir)}
 }
 
 func (i *FreeBSDInfo) Name() string {
